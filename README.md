@@ -159,3 +159,5 @@ delete(providerId) {
 将上述核心内容收紧一个auth.py文件，MVP 只做 API Key + 环境变量，OAuth / lazyOAuth / Vertex ADC 等先不做,具体可见`pi_ai\auth.py`<br>
 (读auth的内容有些过于折磨了，全是没见过的新用法...)
 
+三、实现**Model**注册与**Provider**抽象，具体文件在`pi_ai\models.py`和`pi_ai\providers\model_catalogs.py`<br>
+

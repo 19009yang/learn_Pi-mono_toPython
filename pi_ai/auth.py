@@ -340,12 +340,27 @@ class AuthResolutionOverrides:
 
 
 class ModelsError(Exception):
+    #   自定义异常类，继承 Exception。这是 Python 异常体系的标准做法——所有自定义异常都应该继承
+    #   Exception（或其子类），而不是 BaseException（后者包括 SystemExit、KeyboardInterrupt 等不该被捕获的异常）
     """对应 TS ModelsError（auth 相关子集）。"""
 
+    #   强制关键字传参——cause 必须用关键字形式传递：
+    #   ✅ 正确
+    #   raise ModelsError("auth", "Read failed", cause=read_error)
+    #   ❌ 错误——位置传参不允许
+    #   raise ModelsError("auth", "Read failed", read_error)
     def __init__(self, code: str, message: str, *, cause: BaseException | None = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.__cause__ = cause
+        super().__init__(message)  # 把message 传给 Exception.__init__。这样 str(models_error) 就会返回 message：
+        self.code = code #把错误码存为实例属性，调用者可以访问
+        self.__cause__ = cause   #  __cause__ 是 Python 异例的内置链式机制
+    
+    #   code: str错误码
+    #   raise ModelsError("auth", "Credential store read failed")    # 认证错误
+    #   raise ModelsError("not_found", "Provider not found")         # 查找错误
+    #   raise ModelsError("rate_limit", "Rate limit exceeded")       # 限流错误
+
+    #  message: str
+    #  人类可读的错误描述，会传给 Exception.__init__
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +377,8 @@ _ENV_API_KEY_VARS: dict[str, tuple[str, ...]] = {
     "mistral": ("MISTRAL_API_KEY",),
     "deepseek": ("DEEPSEEK_API_KEY",),
 }
-
+# _ENV_API_KEY_VARS 是一个"每个 provider 从哪些环境变量按什么优先级找 API Key"的配置表——anthropic 特殊，支持 OAuth
+# token 和 API key 两种方式，其他 provider 各有一个专属环境变量名
 
 def get_api_key_env_vars(provider_id: str) -> tuple[str, ...] | None:
     """查 provider 默认环境变量名。对应 env-api-keys.ts getApiKeyEnvVars。"""
@@ -383,16 +399,19 @@ class _EnvApiKeyAuth:
         ctx: AuthContext,
         credential: ApiKeyCredential | None = None,
     ) -> AuthResult | None:
-        del model  # 标准 api-key 解析不依赖 model；签名对齐 TS
+        del model  # 标准 api-key 解析不依赖 model，使用del model显式删除model防止lint报警告
+        #先查看已储存的凭据
         if credential is not None and credential.key:
             return AuthResult(
                 auth=ModelAuth(api_key=credential.key),
                 source="stored credential",
             )
+        #再查看环境变量
         for env_var in self.env_vars:
             value = await ctx.env(env_var)
             if value:
                 return AuthResult(auth=ModelAuth(api_key=value), source=env_var)
+        # 否则返回为空
         return None
 
 
@@ -410,27 +429,37 @@ def env_api_key_auth(name: str, env_vars: Sequence[str]) -> ApiKeyAuth:
 
 
 def _overlay_env_auth_context(base: AuthContext, env: ProviderEnv) -> AuthContext:
-    """请求级 env 覆盖优先于 ambient。对应 TS overlayEnvAuthContext。"""
+    """
+    请求级 env 覆盖优先于 ambient。对应 TS overlayEnvAuthContext
+    - base：原始认证上下文（通常是 DefaultAuthContext，读系统环境变量）
+    - env：请求级别的环境变量覆盖（ProviderEnv 即 dict[str, str]）
+    - 返回一个新的 AuthContext——行为是"env 优先查覆盖层，查不到再查底层"
+    _overlay_env_auth_context 不修改原始上下文，而是在上面贴一层请求级的 env覆盖，让覆盖值优先于系统环境变量，请求结束后覆盖自然消失
+    """
 
-    class _Overlay:
+    class _Overlay: #满足 AuthContext 协议
         async def env(self, name: str) -> str | None:
+            # 先查覆盖层
             if name in env and env[name]:
                 return env[name]
             return await base.env(name)
-
+        
+        #再查底层
         async def file_exists(self, path: str) -> bool:
             return await base.file_exists(path)
 
     return _Overlay()
 
 
+# 这个函数就是 read 的一个安全包装正常时直接返回结果，
+# 异常时将底层错误包装成统一的ModelsError("auth", ...)，让调用者不需要处理各种底层异常类型，同时通过异常链保留了根因信息
 async def _read_credential(credentials: CredentialStore, provider_id: str) -> Credential | None:
     try:
         return await credentials.read(provider_id)
     except Exception as error:
         raise ModelsError("auth", f"Credential store read failed for {provider_id}", cause=error) from error
 
-
+# 与上面的函数类似，是对ApiKeyAuth.resolve()的安全包装
 async def _resolve_api_key(
     auth_context: AuthContext,
     api_key: ApiKeyAuth,
@@ -455,11 +484,11 @@ async def resolve_provider_auth(
     overrides: AuthResolutionOverrides | None = None,
 ) -> AuthResult | None:
     """解析某次请求的 auth。对应 TS resolveProviderAuth。
+    函数按三级优先级依次尝试：
 
-    优先级：
-    1. overrides.api_key（合成 stored credential）
-    2. store 中已有凭据（api_key → resolve；oauth → MVP 返回 None）
-    3. 无存档 → ambient（env）resolve
+    优先级 1：overrides.api_key（请求时显式指定的 key）
+    优先级 2：已存储凭据（用户之前认证成功后保存的）
+    优先级 3：ambient（环境变量等静默回退）
     """
     overrides = overrides or AuthResolutionOverrides()
     request_ctx: AuthContext = (
