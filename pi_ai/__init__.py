@@ -15,6 +15,19 @@ from pi_ai.auth import (
     resolve_provider_auth,
 )
 from pi_ai.event_stream import AssistantMessageEventStream, EventStream
+from pi_ai.models import (
+    Models,
+    MutableModels,
+    Provider,
+    ProviderStreams,
+    calculate_cost,
+    clamp_thinking_level,
+    create_models,
+    create_provider,
+    get_supported_thinking_levels,
+    has_api,
+    models_are_equal,
+)
 from pi_ai.types import (
     Api,
     AssistantMessage,
@@ -61,6 +74,17 @@ __all__ = [
     "resolve_provider_auth",
     "EventStream",
     "AssistantMessageEventStream",
+    "Models",
+    "MutableModels",
+    "Provider",
+    "ProviderStreams",
+    "calculate_cost",
+    "clamp_thinking_level",
+    "create_models",
+    "create_provider",
+    "get_supported_thinking_levels",
+    "has_api",
+    "models_are_equal",
     "Api",
     "CacheRetention",
     "Context",

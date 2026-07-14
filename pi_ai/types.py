@@ -239,7 +239,20 @@ class Model:
     # Provider-specific compatibility overrides (typed per-API in TS; kept as
     # a dict here for simplicity, expanded in Phase 4 compat work).
     compat: dict[str, Any] | None = None
-
+"""
+重要字段：
+- `id`：发给 provider 的模型 ID。
+- `provider`：用于在 `Models` 注册表中找到所属 provider。
+- `api`：provider 内部选择哪一种协议实现。
+- `base_url`：请求地址。
+- `context_window`：输入和输出可用的总 token 上限。
+- `max_tokens`：单次最大输出 token 数。
+- `cost`：每一百万 token 的美元价格。
+- `input`：支持 `"text"` 或 `"image"`。
+- `reasoning`：是否支持 thinking/reasoning。
+- `thinking_level_map`：通用 thinking 等级到 provider 参数的映射。
+- `compat`：暂存 provider 特殊兼容配置。
+"""
 
 # ========== Stream events ==========
 #
