@@ -160,4 +160,34 @@ delete(providerId) {
 (读auth的内容有些过于折磨了，全是没见过的新用法...)
 
 三、实现**Model**注册与**Provider**抽象，具体文件在`pi_ai\models.py`和`pi_ai\providers\model_catalogs.py`<br>
+**models.py**介绍：
+---
+这个文件是整个项目的模型层核心枢纽，承担四大职责：
+1. Provider 注册与管理
+- Provider（抽象基类） — 定义一个 AI 供应商的通用契约：有 id、认证、模型列表、流式调用能力
+- _CreatedProvider — 具体实现类，封装了模型列表、API 路由（单一或按 model.api 字典分发）、并发安全的刷新机制
+- Models — Provider 注册中心，负责聚合查找（按 provider、按 model_id）、批量刷新、认证解析、流式调用
+- MutableModels — 在 Models 之上暴露 set_provider / delete_provider / clear_providers，提供运行时动态注册能力
+- create_provider / create_models — 声明式工厂函数，隐藏内部类，对外提供简洁的构建 API
+2. 认证解析与参数合并
+_apply_auth 是关键流程：当发起一次流式调用时，它会：
+1. 调用 resolve_provider_auth 解析认证（API Key、base_url、headers、env）
+2. 将认证结果与用户传入的 options 合并（用户显式指定的优先级更高）
+3. 构造最终的 request_model（可能带认证提供的 base_url）和 request_options
+这让上层调用者无需关心认证细节，只需传入 model 和 context 即可。
+3. 流式调用编排
+Models.stream / stream_simple 是对外的主入口，它们：
+- 同步返回一个 AssistantMessageEventStream（通过 _lazy_stream）
+- 延迟执行真正的认证 + Provider 调用（封装在 setup() 闭包中）
+- 如果 Provider 不存在或 API 未实现，返回 _failed_stream 而不是抛异常
+complete / complete_simple 则是便捷方法：流式调用后等待最终结果，适合只关心最终 AssistantMessage 的场景。
+4. 工具函数
+- calculate_cost — 按 model 的每百万 token 价格计算用量成本（区分 cache_read/cache_write 的长短写入）
+- get_supported_thinking_levels / clamp_thinking_level —
+推理/思考级别管理：查询模型支持哪些思考深度，将不支持的级别钳位到最接近的支持级别（优先向上找）
+- models_are_equal — 判断两个模型是否相同（id + provider 双键）
+- has_api — 判断模型是否属于某个 API 类型
+---
+一句话总结：这个文件是项目的模型层编排中心——它将 Provider 注册、认证解析、流式调用路由、成本计算、思考级别管理等能力串联起来，为上层提供一个统一的、声明式的、错误安全的模型调用接口，上层只需 models.stream(model, context)即可完成一次完整的 AI 请求，无需关心底层是哪个 Provider、如何认证、如何处理错误。
+
 

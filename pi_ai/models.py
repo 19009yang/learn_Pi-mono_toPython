@@ -199,7 +199,7 @@ def _is_provider_streams(
 
 
 class Models:
-    """Provider registry with model lookup, auth resolution, and streaming."""
+    """这是一个 Provider 注册中心，负责模型查找、认证解析和流式调用"""
 
     def __init__(
         self,
@@ -207,17 +207,18 @@ class Models:
         credentials: CredentialStore | None = None,
         auth_context: AuthContext | None = None,
     ) -> None:
-        self._providers: dict[str, Provider] = {}
-        self._credentials = credentials or InMemoryCredentialStore()
-        self._auth_context = auth_context or default_provider_auth_context()
+        self._providers: dict[str, Provider] = {} # 以 provider_id → Provider 映射存储所有已注册的 provider
+        self._credentials = credentials or InMemoryCredentialStore() # 默认用内存存储，支持外部注入自定义 CredentialStore
+        self._auth_context = auth_context or default_provider_auth_context() #默认使用全局默认认证上下文，同样支持外部注入
 
     def get_providers(self) -> list[Provider]:
-        return list(self._providers.values())
+        return list(self._providers.values()) #返回所有 provider 列表 
 
-    def get_provider(self, provider_id: str) -> Provider | None:
+    def get_provider(self, provider_id: str) -> Provider | None: #按 ID 查找单个 provider
         return self._providers.get(provider_id)
 
     def get_models(self, provider: str | None = None) -> list[Model]:
+        #指定 provider 时只返回该 provider 的模型；否则聚合所有 provider 的模型。异常被静默吞掉（try/except → continue/[]）
         if provider is not None:
             entry = self._providers.get(provider)
             if entry is None:
@@ -230,7 +231,7 @@ class Models:
         models: list[Model] = []
         for entry in self._providers.values():
             try:
-                models.extend(entry.get_models())
+                models.extend(entry.get_models()) #逐元素追加到末尾
             except Exception:
                 continue
         return models
@@ -240,9 +241,11 @@ class Models:
             (model for model in self.get_models(provider) if model.id == model_id),
             None,
         )
+    # 找到第一个匹配model_id的model
 
+    #异步刷新（主要针对云端API）
     async def refresh(self, provider: str | None = None) -> None:
-        if provider is not None:
+        if provider is not None: #指定provider时，只刷新该provider
             entry = self._providers.get(provider)
             if entry is None:
                 return
@@ -258,11 +261,13 @@ class Models:
                 ) from error
             return
 
+        #并发刷新所有provider
         await asyncio.gather(
             *(entry.refresh_models() for entry in self._providers.values()),
             return_exceptions=True,
         )
 
+    #认证解析
     async def get_auth(self, model: Model) -> AuthResult | None:
         provider = self._providers.get(model.provider)
         if provider is None:
@@ -274,12 +279,16 @@ class Models:
             self._auth_context,
         )
 
+    # 流式调用
     def stream(
         self,
         model: Model,
         context: Context,
         options: StreamOptions | None = None,
     ) -> AssistantMessageEventStream:
+        """stream() 本身是同步方法，立即返回一个 AssistantMessageEventStream 对象。
+        真正的异步工作（找provider、解析认证、发起请求）被封装在 setup()闭包中，
+        只在流被消费时才执行。这让调用者可以同步拿到流对象，再按需异步消费。"""
         async def setup() -> AssistantMessageEventStream:
             provider = self._require_provider(model)
             request_model, request_options = await self._apply_auth(
@@ -301,6 +310,7 @@ class Models:
     ) -> AssistantMessage:
         return await self.stream(model, context, options).result()
 
+    # stream是完整流，stream_simple 让调用者通过 reasoning/thinking_budgets 直接指定思考级别
     def stream_simple(
         self,
         model: Model,
@@ -320,6 +330,12 @@ class Models:
 
         return _lazy_stream(model, setup)
 
+    #异步输出
+    """
+    - 调用 stream_simple 拿到流对象
+    - .result() 会阻塞等待流完成，返回最终的 AssistantMessage
+    - 等价于"流式请求，但我只关心最终结果，不要中间事件"
+    """
     async def complete_simple(
         self,
         model: Model,
@@ -328,11 +344,13 @@ class Models:
     ) -> AssistantMessage:
         return await self.stream_simple(model, context, options).result()
 
+    # 查表取 Provider
     def _require_provider(self, model: Model) -> Provider:
         provider = self._providers.get(model.provider)
         if provider is None:
             raise ModelsError("provider", f"Unknown provider: {model.provider}")
         return provider
+
 
     async def _apply_auth(
         self,
@@ -342,6 +360,7 @@ class Models:
         *,
         simple: bool,
     ) -> tuple[Model, StreamOptions | SimpleStreamOptions | None]:
+        #认证解析
         resolution = await resolve_provider_auth(
             provider,
             model,
@@ -355,6 +374,7 @@ class Models:
         if resolution is None:
             return model, options
 
+        #参数合并
         auth = resolution.auth
         request_model = (
             replace(model, base_url=auth.base_url) if auth.base_url else model
@@ -377,6 +397,7 @@ class Models:
             else None
         )
 
+        # options构造/更新
         if options is None:
             option_type = SimpleStreamOptions if simple else StreamOptions
             request_options = option_type(api_key=api_key, headers=headers, env=env)
@@ -390,8 +411,9 @@ class Models:
         return request_model, request_options
 
 
+
 class MutableModels(Models):
-    """Models collection whose provider registry can be changed at runtime."""
+    """唯一职责是暴露 Provider 注册表的修改能力"""
 
     def set_provider(self, provider: Provider) -> None:
         self._providers[provider.id] = provider
@@ -414,7 +436,7 @@ def create_provider(
     headers: ProviderHeaders | None = None,
     refresh_models: RefreshModels | None = None,
 ) -> Provider:
-    """Build a provider from static metadata and one or more API streams."""
+    """用声明式的方式构建一个 Provider 实例，隐藏了内部实现类_CreatedProvider"""
 
     return _CreatedProvider(
         provider_id=id,
@@ -432,11 +454,12 @@ def create_models(
     credentials: CredentialStore | None = None,
     auth_context: AuthContext | None = None,
 ) -> MutableModels:
-    """Create an empty mutable provider registry."""
+    """创建一个空的可变provider注册"""
 
     return MutableModels(credentials=credentials, auth_context=auth_context)
 
 
+# 计算用量
 def calculate_cost(usage: Usage, model: Model) -> CostInfo:
     """Populate and return usage cost from per-million-token model prices."""
 
@@ -457,6 +480,7 @@ def calculate_cost(usage: Usage, model: Model) -> CostInfo:
     return usage.cost
 
 
+# 模型思考能力
 _EXTENDED_THINKING_LEVELS: tuple[ModelThinkingLevel, ...] = (
     "off",
     "minimal",
@@ -467,15 +491,21 @@ _EXTENDED_THINKING_LEVELS: tuple[ModelThinkingLevel, ...] = (
 )
 
 
+# 给定一个 Model，返回它支持哪些思考深度级别
 def get_supported_thinking_levels(model: Model) -> list[ModelThinkingLevel]:
+    # 1. 不支持推理的模型，只返回 ["off"]
     if not model.reasoning:
         return ["off"]
 
     supported: list[ModelThinkingLevel] = []
     for level in _EXTENDED_THINKING_LEVELS:
         mapped = (model.thinking_level_map or {}).get(level)
+        # 2. 显式标记为不支持的级别：跳过
+        # thinking_level_map 中有这个 key，且值为 None → 表示"故意不支持"
         if mapped is None and level in (model.thinking_level_map or {}):
             continue
+        # 3. xhigh 级别没有显式映射 → 默认不支持
+        # 因为 xhigh 是最高级别，成本很高，必须模型显式声明才能启用
         if level == "xhigh" and mapped is None:
             continue
         supported.append(level)
@@ -483,11 +513,10 @@ def get_supported_thinking_levels(model: Model) -> list[ModelThinkingLevel]:
 
 
 def has_api(model: Model, api: str) -> bool:
-    """Return whether a dynamically looked-up model uses the requested API."""
-
+    """返回模型api"""
     return model.api == api
 
-
+#当请求的思考级别不被模型支持时，将其"钳位"到最接近的支持级别
 def clamp_thinking_level(
     level: ModelThinkingLevel,
     model: Model,
@@ -497,15 +526,19 @@ def clamp_thinking_level(
         return level
 
     requested_index = _EXTENDED_THINKING_LEVELS.index(level)
+    #优先向上找
     for candidate in _EXTENDED_THINKING_LEVELS[requested_index:]:
         if candidate in supported:
             return candidate
+    #如果向上没有，再向下搜索
     for candidate in reversed(_EXTENDED_THINKING_LEVELS[:requested_index]):
         if candidate in supported:
             return candidate
+    #如果都找不到，兜底选项
     return supported[0] if supported else "off"
 
 
+# 判断两个模型是否相同
 def models_are_equal(model_a: Model | None, model_b: Model | None) -> bool:
     return (
         model_a is not None
@@ -514,9 +547,8 @@ def models_are_equal(model_a: Model | None, model_b: Model | None) -> bool:
         and model_a.provider == model_b.provider
     )
 
-
+# 包装成一个可以立即返回的流（outer），真正的流创建和事件推送延迟到后台异步执行
 SetupStream = Callable[[], Awaitable[AssistantMessageEventStream]]
-
 
 def _lazy_stream(model: Model, setup: SetupStream) -> AssistantMessageEventStream:
     outer = AssistantMessageEventStream()
@@ -535,12 +567,13 @@ def _lazy_stream(model: Model, setup: SetupStream) -> AssistantMessageEventStrea
     return outer
 
 
+# 在流创建失败时，构造一个只包含错误事件的流作为替代返回，保证调用者始终拿到一个
+# AssistantMessageEventStream，不会因为异常而收到 None 或导致程序崩溃
 def _failed_stream(model: Model, error: BaseException) -> AssistantMessageEventStream:
     stream = AssistantMessageEventStream()
     message = _setup_error_message(model, error)
     stream.push(ErrorEvent(reason="error", error=message))
     return stream
-
 
 def _setup_error_message(model: Model, error: BaseException) -> AssistantMessage:
     return AssistantMessage(

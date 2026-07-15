@@ -1,10 +1,11 @@
-"""Small built-in model catalogs for the Python MVP."""
+"""模型目录"""
 
 from __future__ import annotations
 
 from pi_ai.types import Model, ModelCost
 
 _ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
 def _anthropic_model(
@@ -108,3 +109,73 @@ def get_anthropic_models() -> list[Model]:
     """Return the Anthropic catalog in stable display order."""
 
     return list(ANTHROPIC_MODELS.values())
+
+
+DEEPSEEK_MODELS: dict[str, Model] = {
+    "deepseek-v4-flash": Model(
+        id="deepseek-v4-flash",
+        name="DeepSeek V4 Flash",
+        api="openai-completions",
+        provider="deepseek",
+        base_url=_DEEPSEEK_BASE_URL,
+        reasoning=True,
+        thinking_level_map={
+            "minimal": None,
+            "low": None,
+            "medium": None,
+            "high": "high",
+            "xhigh": "max",
+        },
+        input=["text"],
+        cost=ModelCost(
+            input=0.14,
+            output=0.28,
+            cache_read=0.0028,
+            cache_write=0,
+        ),
+        context_window=1_000_000,
+        max_tokens=384_000,
+        compat={
+            "supportsStore": False,
+            "supportsDeveloperRole": False,
+            "requiresReasoningContentOnAssistantMessages": True,
+            "thinkingFormat": "deepseek",
+        },
+    ),
+    "deepseek-v4-pro": Model(
+        id="deepseek-v4-pro",
+        name="DeepSeek V4 Pro",
+        api="openai-completions",
+        provider="deepseek",
+        base_url=_DEEPSEEK_BASE_URL,
+        reasoning=True,
+        thinking_level_map={
+            "minimal": None,
+            "low": None,
+            "medium": None,
+            "high": "high",
+            "xhigh": "max",
+        },
+        input=["text"],
+        cost=ModelCost(
+            input=0.435,
+            output=0.87,
+            cache_read=0.003625,
+            cache_write=0,
+        ),
+        context_window=1_000_000,
+        max_tokens=384_000,
+        compat={
+            "supportsStore": False,
+            "supportsDeveloperRole": False,
+            "requiresReasoningContentOnAssistantMessages": True,
+            "thinkingFormat": "deepseek",
+        },
+    ),
+}
+
+
+def get_deepseek_models() -> list[Model]:
+    """Return the DeepSeek catalog in stable display order."""
+
+    return list(DEEPSEEK_MODELS.values())
