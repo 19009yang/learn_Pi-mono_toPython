@@ -10,3 +10,4 @@ CLAUDE.md
 
 # Virtual environments
 .venv
+.env

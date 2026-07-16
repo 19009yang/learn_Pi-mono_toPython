@@ -9,6 +9,7 @@ dependencies = [
     "openai>=2.45.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "python-dotenv>=1.2.2",
     "requests>=2.34.2",
 ]
 

@@ -1,4 +1,5 @@
-"""OpenAI-compatible Chat Completions streaming used by DeepSeek."""
+"""OpenAI 兼容 API 的流式聊天补全提供商实现：将 pi 的内部消息格式转换为 OpenAI Chat Completions API 的格式，并把流式响应解析回
+  pi 的标准事件流"""
 
 from __future__ import annotations
 

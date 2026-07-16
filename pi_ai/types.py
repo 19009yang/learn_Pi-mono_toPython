@@ -104,7 +104,7 @@ class ThinkingContent:
     type: str = field(default="thinking", init=False)
     thinking: str
     thinking_signature: str | None = None
-    redacted: bool = False
+    redacted: bool = False #加密/脱敏
 
 
 @dataclass
