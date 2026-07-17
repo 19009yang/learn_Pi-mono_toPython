@@ -4,6 +4,8 @@
 > 配套文档：
 > - `pi_learn/Agent/packages-agent-analysis.md`（agent 包逐文件解析）
 > - `pi_learn/python-pi-implementation-plan.md`（完整实现方案 + 类型签名）
+> - `pi_learn/models-learning-path.md`（Models/Provider/模型目录的 TS 与 Python 对照解读）
+> - `pi_learn/agent-types-learning-path.md`（Phase 2.1：Agent 类型与 convert_to_llm）
 > 本路线聚焦"学什么、读哪些 TS 文件、写哪些 Python 文件、如何验证、留哪些扩展点"。
 
 ---
@@ -170,6 +172,8 @@ assert msg.content 文本含 "4"
 
 **学习目标**：区分 `Message`（LLM 标准）与 `AgentMessage`（含自定义消息的联合），理解 `convert_to_llm` 的作用。
 
+**详细指南**：`pi_learn/agent-types-learning-path.md`
+
 **读 TS**：
 - `packages/agent/src/types.ts`（`AgentTool`、`AgentState`、`AgentEvent`、`AgentLoopConfig`、钩子结果类型）
 - `packages/agent/src/harness/messages.ts`（自定义消息 + `convertToLlm`）
@@ -178,11 +182,23 @@ assert msg.content 文本含 "4"
 - `pi_agent/types.py` — `AgentTool` 基类、`AgentToolResult`、`AgentState`、`AgentEvent` 联合、`AgentLoopConfig`、`BeforeToolCallResult`/`AfterToolCallResult`
 - `pi_agent/messages.py` — `BashExecutionMessage`/`CompactionSummaryMessage`/`BranchSummaryMessage`/`CustomMessage` + `convert_to_llm()` + 构造器
 
+**验证**：
+```bash
+uv run pytest tests/test_agent_types.py tests/test_messages.py -v
+```
+
 **关键概念**：
-- `AgentTool` 用抽象基类：`name`、`description`、`parameters_schema`（Pydantic 生成）、`execution_mode`、`async prepare_arguments()`、`async execute()`。
-- `convert_to_llm`：自定义消息 → user 消息（bashExecution 文本化、summary 加 XML 标签）；`exclude_from_context=True` 的跳过。
+- `AgentTool` 用抽象基类：`name`、`description`、`parameters`（JSON Schema）、`execution_mode`、`prepare_arguments()`、`async execute()`；经 `as_tool()` 投影为 `pi_ai.Tool`。
+- `convert_to_llm`：自定义消息 → user 消息（bashExecution 文本化、summary 加 TS 同款 `<summary>` 包装）；`exclude_from_context=True` 的跳过。
 
 **扩展点**：`AgentMessage` 用 Union，加新自定义消息类型只需扩 Union + 在 `convert_to_llm` 加一个分支（或用注册表避免 if-else）。
+
+### 2.1 自检清单
+- [ ] 能说明 `Message` 与 `AgentMessage` 的受众差异
+- [ ] `convert_to_llm` 对四种自定义角色的行为能默写
+- [ ] 能实现一个最小 `AgentTool` 子类并通过 `execute` 测试
+- [ ] `AgentState` 赋值拷贝语义理解
+- [ ] 钩子 `AfterToolCallResult` 字段级覆盖（无深合并）理解
 
 ### 2.2 核心循环引擎（最关键）
 

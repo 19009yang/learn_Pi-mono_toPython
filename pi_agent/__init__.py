@@ -1,0 +1,81 @@
+"""pi_agent: Agent runtime (Python port of @earendil-works/pi-agent-core).
+
+Phase 2.1 covers types and message conversion only.
+The loop engine (2.2) and Agent class (2.3) come next.
+"""
+
+from pi_agent.messages import (
+    BRANCH_SUMMARY_PREFIX,
+    BRANCH_SUMMARY_SUFFIX,
+    COMPACTION_SUMMARY_PREFIX,
+    COMPACTION_SUMMARY_SUFFIX,
+    AgentMessage,
+    BashExecutionMessage,
+    BranchSummaryMessage,
+    CompactionSummaryMessage,
+    CustomMessage,
+    bash_execution_to_text,
+    convert_to_llm,
+    create_branch_summary_message,
+    create_compaction_summary_message,
+    create_custom_message,
+)
+from pi_agent.types import (
+    AfterToolCallContext,
+    AfterToolCallResult,
+    AgentContext,
+    AgentEvent,
+    AgentLoopConfig,
+    AgentLoopTurnUpdate,
+    AgentState,
+    AgentTool,
+    AgentToolCall,
+    AgentToolResult,
+    AgentToolUpdateCallback,
+    BeforeToolCallContext,
+    BeforeToolCallResult,
+    PrepareNextTurnContext,
+    QueueMode,
+    ShouldStopAfterTurnContext,
+    StreamFn,
+    ThinkingLevel,
+    ToolExecutionMode,
+)
+
+__all__ = [
+    # messages
+    "BRANCH_SUMMARY_PREFIX",
+    "BRANCH_SUMMARY_SUFFIX",
+    "COMPACTION_SUMMARY_PREFIX",
+    "COMPACTION_SUMMARY_SUFFIX",
+    "AgentMessage",
+    "BashExecutionMessage",
+    "BranchSummaryMessage",
+    "CompactionSummaryMessage",
+    "CustomMessage",
+    "bash_execution_to_text",
+    "convert_to_llm",
+    "create_branch_summary_message",
+    "create_compaction_summary_message",
+    "create_custom_message",
+    # types
+    "AfterToolCallContext",
+    "AfterToolCallResult",
+    "AgentContext",
+    "AgentEvent",
+    "AgentLoopConfig",
+    "AgentLoopTurnUpdate",
+    "AgentState",
+    "AgentTool",
+    "AgentToolCall",
+    "AgentToolResult",
+    "AgentToolUpdateCallback",
+    "BeforeToolCallContext",
+    "BeforeToolCallResult",
+    "PrepareNextTurnContext",
+    "QueueMode",
+    "ShouldStopAfterTurnContext",
+    "StreamFn",
+    "ThinkingLevel",
+    "ToolExecutionMode",
+]
