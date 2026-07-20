@@ -70,7 +70,11 @@ def agent_loop_continue(
     signal: AbortSignal | None = None,
     stream_fn: StreamFn | None = None,
 ) -> EventStream[AgentEvent, list[AgentMessage]]:
-    """用于 retry：context 里已有 user 或 toolResult，**不再**注入新 prompt"""
+    """用于 retry：context 里已有 user 或 toolResult，不再注入新 prompt
+    约束（与 TS 相同）：
+    - `context.messages` 不能为空。
+    - 最后一条不能是 `assistant`（否则 provider 无法接话）。
+    """
     if not context.messages:
         raise ValueError("Cannot continue: no messages in context")
     last = context.messages[-1]
@@ -287,18 +291,15 @@ def _apply_turn_update(
     config: AgentLoopConfig,
     snapshot: AgentLoopTurnUpdate,
 ) -> tuple[AgentContext, AgentLoopConfig]:
-    # 与 TS 对齐：使用不可变更新（spread / replace）而非原地修改
-    # TS: config = { ...config, model: nextTurnSnapshot.model ?? config.model, ... }
-    context = snapshot.context if snapshot.context is not None else current_context
-    new_reasoning = config.reasoning
+    if snapshot.context is not None:
+        current_context = snapshot.context
+    if snapshot.model is not None:
+        config.model = snapshot.model
     if snapshot.thinking_level is not None:
-        new_reasoning = None if snapshot.thinking_level == "off" else snapshot.thinking_level
-    new_config = replace(
-        config,
-        model=snapshot.model if snapshot.model is not None else config.model,
-        reasoning=new_reasoning,
-    )
-    return context, new_config
+        config.reasoning = (
+            None if snapshot.thinking_level == "off" else snapshot.thinking_level
+        )
+    return current_context, config
 
 
 # ========== LLM streaming ==========
@@ -598,17 +599,12 @@ async def _execute_tool_calls_parallel(
         if signal is not None and signal.aborted:
             break
 
-    # 使用 asyncio.gather 实现真正的并行执行（与 TS 的 Promise.all 对齐）
-    # immediate 结果包装为已完成 coroutine，保持源序
-    coros: list[Awaitable[FinalizedToolCallOutcome]] = []
+    ordered: list[FinalizedToolCallOutcome] = []
     for entry in finalized_entries:
         if callable(entry):
-            coros.append(entry())
+            ordered.append(await entry())
         else:
-            async def _const(e: FinalizedToolCallOutcome = entry) -> FinalizedToolCallOutcome:
-                return e
-            coros.append(_const())
-    ordered = list(await asyncio.gather(*coros))
+            ordered.append(entry)
 
     messages: list[ToolResultMessage] = []
     for finalized in ordered:
