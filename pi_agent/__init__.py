@@ -1,9 +1,20 @@
-"""pi_agent: Agent runtime (Python port of @earendil-works/pi-agent-core).
+"""pi_agent: Agent runtime (Python port of @earendil-works/pi-agent-core)."""
 
-Phase 2.1 covers types and message conversion only.
-The loop engine (2.2) and Agent class (2.3) come next.
-"""
-
+from pi_agent.agent import (
+    Agent,
+    AgentOptions,
+    ActiveRun,
+    PendingMessageQueue,
+)
+from pi_agent.agent_loop import (
+    agent_loop,
+    agent_loop_continue,
+    execute_tool_calls,
+    prepare_tool_call,
+    run_agent_loop,
+    run_agent_loop_continue,
+    stream_assistant_response,
+)
 from pi_agent.messages import (
     BRANCH_SUMMARY_PREFIX,
     BRANCH_SUMMARY_SUFFIX,
@@ -43,6 +54,19 @@ from pi_agent.types import (
 )
 
 __all__ = [
+    # agent (2.3)
+    "Agent",
+    "AgentOptions",
+    "ActiveRun",
+    "PendingMessageQueue",
+    # agent loop
+    "agent_loop",
+    "agent_loop_continue",
+    "run_agent_loop",
+    "run_agent_loop_continue",
+    "stream_assistant_response",
+    "execute_tool_calls",
+    "prepare_tool_call",
     # messages
     "BRANCH_SUMMARY_PREFIX",
     "BRANCH_SUMMARY_SUFFIX",

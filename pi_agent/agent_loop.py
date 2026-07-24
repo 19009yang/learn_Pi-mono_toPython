@@ -115,6 +115,7 @@ async def run_agent_loop(
         await _emit(emit, MessageEndEvent(message=prompt))
 
     await _run_loop(current_context, new_messages, config, signal, emit, stream_fn)
+    # _run_loop内部有两层循环，最后调用await _emit(emit, AgentEndEvent(messages=new_messages))
     return new_messages
 
 
@@ -180,6 +181,10 @@ async def _run_loop(
     emit: AgentEventSink, # 事件发射器，向 EventStream 推送事件
     stream_fn: StreamFn | None, # LLM 调用函数，可选（可从 config 中 fallback）
 ) -> None:
+    """
+    双层循环：内层循环驱动 LLM ↔ 工具的多轮交互，直到工具不再需要继续调用且没有 steering 消息；外层循环驱动
+    follow-up 消息的注入，直到没有后续任务。
+    """
     from pi_agent.types import AgentEndEvent, MessageEndEvent, MessageStartEvent, TurnEndEvent, TurnStartEvent
 
     current_context = initial_context # 当前轮次的上下文，循环中可被 prepare_next_turn 修改
