@@ -196,6 +196,9 @@ def _create_active_run() -> ActiveRun:
     """
     signal = AbortSignal() #为本次Agent运行创建一个独立的协作式取消信号，AbortSignal()内部只有一个asyncio.Event()作为开关
     future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+    # Future 是 asyncio中的"占位结果"。它初始状态是未完成（pending），后续有人调用 future.set_result(None)后才变为已完成（resolved）
+    # [None]说明resolve时不携带结果，只作为“完成通知”
+
     resolve_future: Callable[[], None] = lambda: (
         future.set_result(None) if not future.done() else None
     )
@@ -274,7 +277,7 @@ class Agent:
         # ---- 状态 ----
         # 从选项或默认值构建初始 AgentState。
         # 工具和消息在赋值时被复制（写时复制），
-        # 与 TS MutableAgentState getter/setter 语义一致。
+
         initial = opts.initial_state or {}
         self._state = AgentState(
             system_prompt=initial.get("system_prompt", ""),
@@ -340,6 +343,14 @@ class Agent:
         """
         return self._state
 
+    """@property 与 @steering_mode.setter封装内部值的读取和写入操作，装饰器将显示调用变成属性调用：
+            mode = agent.steering_mode       # 读
+            agent.steering_mode = "all"      # 写
+        与下面普通函数调用效果一致
+            mode = agent.get_steering_mode()       # 读
+            agent.set_steering_mode("all")         # 写
+    """
+
     @property
     def steering_mode(self) -> QueueMode:
         """排队的 steering 消息如何被 drain。"""
@@ -384,17 +395,17 @@ class Agent:
         对应 TS Agent.subscribe(listener)。
         """
         self._listeners.add(listener)
-        return lambda: self._listeners.discard(listener)
+        return lambda: self._listeners.discard(listener) #discard是幂等操作，意思是做一次和做多次的结果一样，不怕重复操作
+        #如果listener不存在，静默忽略：取消订阅时监听器可能已经被其他途径移除了，discard 不会报错，更安全
 
     # ========== 队列 API ==========
 
     def steer(self, message: AgentMessage) -> None:
-        """将消息排队，在当前 assistant 轮次之后注入。
-
+        """
+        将消息排队，在当前 assistant 轮次之后注入。
         Steering 消息在每个内循环迭代开始时被 drain，
         在下一次 LLM 调用之前。在 "one-at-a-time" 模式下
         （默认），每次迭代仅注入一条 steering 消息。
-
         对应 TS Agent.steer(message)。
         """
         self._steering_queue.enqueue(message)
@@ -440,8 +451,8 @@ class Agent:
         对应 TS Agent.abort()，其调用
         this.activeRun?.abortController.abort()。
         """
-        if self._active_run is not None:
-            self._active_run.signal.abort()
+        if self._active_run is not None: 
+            self._active_run.signal.abort() #调用_event.set()让signal.aborted 变为 True，实际上signal.aborted()是event.is_set()
 
     async def wait_for_idle(self) -> None:
         """当前运行和所有被 await 的事件监听器完成后 resolve。

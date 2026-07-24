@@ -57,11 +57,11 @@ class AbortSignal:
     @property
     def aborted(self) -> bool:
         """对应 DOM AbortSignal.aborted。"""
-        return self._event.is_set()
+        return self._event.is_set() #如果调用过set(),返回true
 
     def abort(self) -> None:
         """对应 AbortController.abort()。可安全多次调用（Event.set 幂等）。"""
-        self._event.set()
+        self._event.set() #通知所有等待的协程
 
     async def wait(self) -> None:
         """挂起直到 abort()；已 abort 则立即返回。"""
