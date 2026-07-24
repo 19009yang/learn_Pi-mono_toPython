@@ -48,6 +48,7 @@ StreamFn: TypeAlias = Callable[
     [Model, Context, SimpleStreamOptions | None],
     AssistantMessageEventStream | Awaitable[AssistantMessageEventStream],
 ]
+# 一个函数，接收 模型、上下文、选项 三个参数，返回一个事件流（LLM 的流式响应）,本质就是"把消息发给 LLM API 并拿回结果"的函数
 
 # ========== 工具结果和工具定义 ==========
 @dataclass
@@ -181,7 +182,7 @@ PrepareNextTurnContext: TypeAlias = ShouldStopAfterTurnContext
 
 
 @dataclass
-class AgentContext:
+class AgentContext:  #具体调用在 Agent._create_context_snapshot()
     """传入底层 Agent 循环的上下文快照"""
     # 这是不可变快照——每轮循环创建新的，不直接修改
     system_prompt: str 
@@ -269,7 +270,7 @@ class AgentState:
 # ========== Loop config ==========
 
 
-@dataclass
+@dataclass #调用在agent.py
 class AgentLoopConfig:
     """
     底层 Agent 循环的完整配置——是整个 Agent 运行的参数中心

@@ -532,8 +532,7 @@ class Agent:
         # 如果最后一条消息是 assistant，先尝试 drain 队列来创建
         # 合法的续接点（最后一条必须是 user/toolResult）。
         if getattr(last_message, "role", None) == "assistant":
-            # 先尝试 steering（skipInitialSteeringPoll 避免重新 drain
-            # 刚刚已经 drain 的消息）
+            # 先尝试 steering（skipInitialSteeringPoll 避免重新 drain 刚刚已经 drain 的消息）
             queued_steering = self._steering_queue.drain()
             if queued_steering:
                 await self._run_prompt_messages(
@@ -569,15 +568,15 @@ class Agent:
         if isinstance(input, list):
             return input
 
-        # 单个 AgentMessage 对象（非字符串）
+        # 单个str对象转换成list对象
         if not isinstance(input, str):
             return [input]
 
         # 字符串输入 → UserMessage
         content: list[TextContent | ImageContent] = [TextContent(text=input)]
         if images:
-            content.extend(images)
-        return [UserMessage(content=content, timestamp=int(time.time() * 1000))]
+            content.extend(images) #追加合并 [A,B,C]+[D,E]->[A,B,C,D,E]
+        return [UserMessage(content=content, timestamp=int(time.time() * 1000))] #记录毫秒级时间戳
 
     # ========== 内部: 运行编排 ==========
 
@@ -595,14 +594,14 @@ class Agent:
         """
         await self._run_with_lifecycle(
             lambda signal: run_agent_loop(
-                messages,
-                self._create_context_snapshot(),
+                messages,  # 要发送的 prompt 消息
+                self._create_context_snapshot(), # 当前状态快照（system_prompt + messages + tools）
                 self._create_loop_config(
                     skip_initial_steering_poll=skip_initial_steering_poll
-                ),
-                lambda event: self._process_events(event),
-                signal,
-                self.stream_fn,
+                ), # 循环配置（模型、钩子、队列 drain 函数等）
+                lambda event: self._process_events(event), # 事件回调 → 状态归约 + 通知监听器
+                signal, # AbortSignal（由 lambda 参数传入）
+                self.stream_fn,  # LLM 调用函数
             )
         )
 
@@ -674,7 +673,10 @@ class Agent:
         # 组合 prepareNextTurnWithContext 和 prepareNextTurn：
         # 如果 prepareNextTurnWithContext 存在，优先调用它并
         # 传入完整上下文；否则 prepareNextTurn 仅接收 signal。
+
+        # callable：用来描述一个函数/可调用对象的参数和返回值类型
         prepare_next_turn_hook: Callable[[PrepareNextTurnContext], Awaitable[AgentLoopTurnUpdate | None] | AgentLoopTurnUpdate | None] | None = None
+
         if self.prepare_next_turn_with_context is not None or self.prepare_next_turn is not None:
             async def prepare_next_turn_hook_impl(
                 context: PrepareNextTurnContext,
@@ -753,7 +755,7 @@ class Agent:
         active_run = _create_active_run()
         self._active_run = active_run
 
-        # 标记 streaming 状态（镜像 TS runWithLifecycle）
+        # 标记 streaming 状态
         self._state._set_streaming(True)
         self._state._set_streaming_message(None)
         self._state._set_error_message(None)

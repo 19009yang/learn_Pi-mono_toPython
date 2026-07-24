@@ -322,6 +322,7 @@ class Models:
             request_model, request_options = await self._apply_auth(
                 provider, model, options, simple=True
             )
+            # 调用provider的stream_simple返回response，其中不同LLM的provider实现不同，但stream_simple是必须实现的抽象类
             return provider.stream_simple(
                 request_model,
                 context,
