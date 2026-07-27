@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dotenv import load_dotenv
 import json
 import signal
 import sys
@@ -140,6 +141,7 @@ async def run_cli(args: argparse.Namespace, write: Callable[[str], None] | None 
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_dotenv()
     return asyncio.run(run_cli(parse_args(argv)))
 
 
