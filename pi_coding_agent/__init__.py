@@ -8,6 +8,7 @@ from pi_coding_agent.tools import (
     ReadTool,
     ToolState,
     WriteTool,
+    LoadSkillTool,
     create_default_tools,
 )
 from pi_coding_agent.skills import Skill, format_skill_invocation, load_skills
@@ -22,6 +23,7 @@ __all__ = [
     "ToolState",
     "WriteTool",
     "create_default_tools",
+    "LoadSkillTool",
     "Skill",
     "build_system_prompt",
     "format_skill_invocation",

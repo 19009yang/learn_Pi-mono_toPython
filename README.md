@@ -233,3 +233,5 @@ async def _emit(emit: AgentEventSink, event: AgentEvent) -> None:
 
 七、下面构建各类tools、skill并组装成CLI，具体文件在`pi_coding_agent`<br>
 工具系统的具体架构介绍在`markdown\tool-system-guide.md`<br>
+目前已经能够实现新增tool功能，使用`python/uv -m pi_coding_agent`命令即可快速使用<br>
+下一步需要实现skill加载和新增功能，与tool类似，使用一个实例进行说明<br>

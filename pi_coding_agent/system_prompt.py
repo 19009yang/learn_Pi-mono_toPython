@@ -1,4 +1,4 @@
-"""System prompt assembly for the Python coding-agent MVP."""
+"""这个文件负责组装 coding agent 的 system prompt """
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from xml.sax.saxutils import escape
 from pi_agent.types import AgentTool
 from pi_coding_agent.skills import Skill
 
-
+# 提取工具名称和描述
 def _tool_description(tool: AgentTool | str) -> tuple[str, str]:
     if isinstance(tool, str):
         return tool, ""
@@ -17,6 +17,11 @@ def _tool_description(tool: AgentTool | str) -> tuple[str, str]:
 
 
 def _format_skills(skills: Sequence[Skill]) -> str:
+    """
+    将 Skill 列表渲染为 XML 格式的 <available_skills> 块，
+    过滤掉disable_model_invocation=True 的 skill。
+    每个 skill 输出<name>、<description>、<location>（对应 file_path）。
+    """
     lines = [
         "<available_skills>",
     ]
@@ -62,6 +67,12 @@ def build_system_prompt(
         for name, description in (_tool_description(tool) for tool in tools)
     ]
     tools_block = "\n".join(rendered_tools) if rendered_tools else "- (none)"
+    has_skill_loader = any(_tool_description(tool)[0] == "load_skill" for tool in tools)
+    skill_rule = (
+        "When a task matches a skill description, call load_skill before following it."
+        if has_skill_loader
+        else "When a task matches a skill description, read its full SKILL.md file before following it."
+    )
     prompt = f"""You are pi, an expert coding assistant working in a local project.
 
 Working directory: {Path(cwd).resolve()}
@@ -75,6 +86,6 @@ Tool use rules:
 - Prefer the dedicated read, grep, glob, write, and edit tools over shell equivalents.
 - Explain completed work concisely and include relevant file paths.
 
-Skills provide task-specific instructions. When a task matches a skill description, read its full SKILL.md file before following it.
+Skills provide task-specific instructions. {skill_rule}
 {_format_skills(skills)}"""
     return prompt + _format_project_context(project_context)
