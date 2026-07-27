@@ -229,5 +229,6 @@ async def _emit(emit: AgentEventSink, event: AgentEvent) -> None:
 2.抽象隔离：`agent_loop` 内部不直接依赖 `EventStream` 的 `push` 方法，只依赖一个抽象的"发射器"接口。这样 emit的实现可以替换（例如打印日志、写文件、发 `WebSocket`），循环逻辑本身不变<br>
 
 六、这部分将底层 `agent_loop`（裸循环逻辑）封装为具备完整生命周期管理的对象，具体实现在`pi_agent\agent.py`<br>
->AI根据原始ts代码生成的py代码中，几乎每个函数都会嵌套各种类，类中又有其它的函数和类，封装看得我头疼...
+>AI根据原始ts代码生成的py代码中，几乎每个函数都会嵌套各种类，类中又有其它的函数和类，给我看晕了
 
+七、下面构建各类tools、skill并组装成CLI，具体文件在`pi_coding_agent`

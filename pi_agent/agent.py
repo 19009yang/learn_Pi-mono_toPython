@@ -938,3 +938,8 @@ def _make_event(type_str: str, **kwargs: Any) -> AgentEvent:
     if cls is None:
         raise ValueError(f"Unknown event type: {type_str}")
     return cls(**kwargs)
+
+    # 自动找到对应的事件类并实例化
+    # 例如，如果 type_str == "message_start", cls = MessageStartEvent
+    # 如果 **kwargs: Any为 message = failure_message，则cls(**kwargs)为MessageStartEvent(message = failure_message)
+

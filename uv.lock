@@ -589,6 +589,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "openai" },
+    { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "python-dotenv" },
@@ -599,6 +600,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "openai", specifier = ">=2.45.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
