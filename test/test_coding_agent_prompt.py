@@ -11,7 +11,7 @@ from pi_coding_agent.system_prompt import build_system_prompt
 from pi_coding_agent.tools import LoadSkillTool, create_default_tools
 
 
-def test_load_skills_reads_only_root_skill_file(tmp_path: Path) -> None:
+def test_load_skills_reads_root_and_nested_skill_files(tmp_path: Path) -> None:
     skills_dir = tmp_path / "review"
     skills_dir.mkdir()
     (skills_dir / "SKILL.md").write_text(
@@ -20,13 +20,74 @@ def test_load_skills_reads_only_root_skill_file(tmp_path: Path) -> None:
     )
     nested = skills_dir / "nested"
     nested.mkdir()
-    (nested / "SKILL.md").write_text("---\ndescription: Not loaded\n---\n", encoding="utf-8")
+    (nested / "SKILL.md").write_text(
+        "---\nname: nested-review\ndescription: Nested review skill\n---\nCheck nested files.",
+        encoding="utf-8",
+    )
 
     skills = load_skills([skills_dir])
 
-    assert len(skills) == 1
+    assert len(skills) == 2
     assert skills[0].name == "review"
     assert skills[0].content == "Read the target first."
+    assert skills[1].name == "nested-review"
+    assert skills[1].content == "Check nested files."
+
+
+def test_load_skills_skips_hidden_and_pycache_dirs(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "skills-root"
+    skills_dir.mkdir()
+    (skills_dir / "SKILL.md").write_text(
+        "---\nname: root\ndescription: Root skill\n---\nRoot content.",
+        encoding="utf-8",
+    )
+    hidden = skills_dir / ".hidden"
+    hidden.mkdir()
+    (hidden / "SKILL.md").write_text(
+        "---\nname: hidden\ndescription: Should be skipped\n---\nHidden content.",
+        encoding="utf-8",
+    )
+    pycache = skills_dir / "__pycache__"
+    pycache.mkdir()
+    (pycache / "SKILL.md").write_text(
+        "---\nname: pycache\ndescription: Should be skipped\n---\nPycache content.",
+        encoding="utf-8",
+    )
+    visible = skills_dir / "visible"
+    visible.mkdir()
+    (visible / "SKILL.md").write_text(
+        "---\nname: visible\ndescription: Visible skill\n---\nVisible content.",
+        encoding="utf-8",
+    )
+
+    skills = load_skills([skills_dir])
+
+    assert len(skills) == 2
+    names = [s.name for s in skills]
+    assert "root" in names
+    assert "visible" in names
+    assert "hidden" not in names
+    assert "pycache" not in names
+
+
+def test_load_skills_skips_invalid_frontmatter(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "bad-skill"
+    skills_dir.mkdir()
+    (skills_dir / "SKILL.md").write_text(
+        "---\nname: bad\n---\nNo description means this is skipped.",
+        encoding="utf-8",
+    )
+    good = tmp_path / "good-skill"
+    good.mkdir()
+    (good / "SKILL.md").write_text(
+        "---\nname: good\ndescription: A valid skill\n---\nGood content.",
+        encoding="utf-8",
+    )
+
+    skills = load_skills([skills_dir, good])
+
+    assert len(skills) == 1
+    assert skills[0].name == "good"
 
 
 def test_skill_invocation_and_system_prompt_include_xml(tmp_path: Path) -> None:

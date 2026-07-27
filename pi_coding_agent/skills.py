@@ -67,33 +67,64 @@ def _as_directories(directories: str | Path | Sequence[str | Path]) -> list[Path
     return [Path(directory) for directory in directories]
 
 
-def load_skills(directories: str | Path | Sequence[str | Path]) -> list[Skill]:
-    """Load valid root ``SKILL.md`` files from explicitly supplied directories.
+def _load_skill_from_dir(directory: Path) -> Skill | None:
+    """Try to load a single ``SKILL.md`` from *directory*.
 
-    This MVP deliberately skips recursive discovery and ignore-file handling;
-    those can be added without changing the Skill or prompt interfaces.
+    Returns ``None`` if the file is missing or has no valid description.
+    """
+    skill_path = directory / "SKILL.md"
+    if not skill_path.is_file():
+        return None
+    metadata, content = _parse_frontmatter(skill_path.read_text(encoding="utf-8"))
+    description = metadata.get("description")
+    if not isinstance(description, str) or not description.strip():
+        return None
+    name = metadata.get("name")
+    skill_name = name.strip() if isinstance(name, str) and name.strip() else directory.name
+    disabled = metadata.get("disable-model-invocation", metadata.get("disable_model_invocation", False))
+    return Skill(
+        name=skill_name,
+        description=description.strip(),
+        content=content,
+        file_path=skill_path.resolve(),
+        disable_model_invocation=disabled is True,
+    )
+
+
+def _discover_skill_dirs(root: Path) -> list[Path]:
+    """Recursively discover directories that contain a ``SKILL.md``.
+
+    Skips directories whose names start with ``.`` (e.g. ``.git``) or are
+    ``__pycache__``.  *root* itself is included if it contains ``SKILL.md``.
+    """
+    _SKIP_DIRS = {".", "__pycache__"}
+    result: list[Path] = []
+    if (root / "SKILL.md").is_file():
+        result.append(root)
+    for path in sorted(root.rglob("SKILL.md")):
+        parent = path.parent
+        # Skip if any segment starts with "." or is __pycache__
+        if any(part.startswith(".") or part in _SKIP_DIRS for part in parent.relative_to(root).parts):
+            continue
+        if parent not in result:
+            result.append(parent)
+    return result
+
+
+def load_skills(directories: str | Path | Sequence[str | Path]) -> list[Skill]:
+    """Load valid ``SKILL.md`` files from supplied directories, recursively.
+
+    Each directory is scanned recursively: if it contains a ``SKILL.md`` it is
+    loaded, and all sub-directories that contain a ``SKILL.md`` are also
+    discovered and loaded.  Directories whose names start with ``.`` or are
+    ``__pycache__`` are skipped.
     """
     skills: list[Skill] = []
     for directory in _as_directories(directories):
-        skill_path = directory / "SKILL.md"
-        if not skill_path.is_file():
-            continue
-        metadata, content = _parse_frontmatter(skill_path.read_text(encoding="utf-8"))
-        description = metadata.get("description")
-        if not isinstance(description, str) or not description.strip():
-            continue
-        name = metadata.get("name")
-        skill_name = name.strip() if isinstance(name, str) and name.strip() else directory.name
-        disabled = metadata.get("disable-model-invocation", metadata.get("disable_model_invocation", False))
-        skills.append(
-            Skill(
-                name=skill_name,
-                description=description.strip(),
-                content=content,
-                file_path=skill_path.resolve(),
-                disable_model_invocation=disabled is True,
-            )
-        )
+        for skill_dir in _discover_skill_dirs(directory):
+            skill = _load_skill_from_dir(skill_dir)
+            if skill is not None:
+                skills.append(skill)
     return skills
 
 
