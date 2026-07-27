@@ -231,4 +231,5 @@ async def _emit(emit: AgentEventSink, event: AgentEvent) -> None:
 六、这部分将底层 `agent_loop`（裸循环逻辑）封装为具备完整生命周期管理的对象，具体实现在`pi_agent\agent.py`<br>
 >AI根据原始ts代码生成的py代码中，几乎每个函数都会嵌套各种类，类中又有其它的函数和类，给我看晕了
 
-七、下面构建各类tools、skill并组装成CLI，具体文件在`pi_coding_agent`
+七、下面构建各类tools、skill并组装成CLI，具体文件在`pi_coding_agent`<br>
+工具系统的具体架构介绍在`markdown\tool-system-guide.md`<br>

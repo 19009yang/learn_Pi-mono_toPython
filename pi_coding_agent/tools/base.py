@@ -1,4 +1,3 @@
-"""Shared state and helpers for the Phase 3.1 filesystem tools."""
 
 from __future__ import annotations
 

@@ -12,6 +12,7 @@ from pi_coding_agent.tools.glob import GlobTool
 from pi_coding_agent.tools.grep import GrepTool
 from pi_coding_agent.tools.read import ReadTool
 from pi_coding_agent.tools.write import WriteTool
+from pi_coding_agent.tools.search import SearchTool
 
 
 def create_default_tools(cwd: str | Path) -> list[AgentTool]:
@@ -24,6 +25,7 @@ def create_default_tools(cwd: str | Path) -> list[AgentTool]:
         EditTool(cwd, state),
         GrepTool(cwd, state),
         GlobTool(cwd, state),
+        SearchTool(),   #非系统工具，不需要cwd和state
     ]
 
 
@@ -35,5 +37,6 @@ __all__ = [
     "ReadTool",
     "ToolState",
     "WriteTool",
+    "SearchTool",
     "create_default_tools",
 ]
