@@ -1,0 +1,70 @@
+=== Page 1 ===
+To address this, we propose StreamMeCo, an tally proven to significantly outperform previ-
+efficient training-free Long-Term Stream Agent ousretrievalframeworks.
+Memory Compression framework, achieving the
+• We demonstrate the effectiveness of Stream-
+first memory compression of industrial-level
+MeCothroughextensiveexperiments. Onthree
+streaming video agent and supporting efficient
+high-difficulty benchmark datasets, under ap-
+memory graph retrieval. Based on the connectiv-
+proximately 70% memory graph compression,
+ityofthememorygraph,wedesignadual-branch
+theproposedmethodachievesa1.87×speedup
+memory compression method. For isolated text
+inmemoryretrievalwhiledeliveringanaverage
+nodes, we use the Edge-free Minmax sampling
+accuracyimprovementof1.0%.
+(EMsampling)moduleforcompression. First,we
+cluster the text nodes into different groups, then 2 RelatedWork
+for each cluster, we first select the node closest
+2.1 StreamingVideoUnderstanding
+to the cluster center and add it to the selected
+set,thencalculatetheminimumdistancebetween Streamingvideounderstandingenablesamodelto
+each unselected node and the selected set, choos- continuously process incoming frames, and upon
+ing the farthest point. This process continues un- receiving a user question Q at time t, generate
+t
+til the number of selected nodes meets the pre- responsesbasedontheaccumulatedcontentC .
+1:t
+defined requirement. For connected text nodes, Existing methods fall into two main paradigms:
+weusetheEdge-awareWeightingpruning(EW- visualtokencompressionandKVcachecompres-
+pruning)module. Bycalculatingtheweightedge sion. The former selects informative tokens ei-
+matrixbetweentextnodesandfacenodesorvoice therinpixelspaceorafterfeatureencoding(Chen
+nodes,wedeterminetheentityimportanceofeach et al., 2025; Dorovatas et al., 2025; Zeng et al.,
+textnode. We thencombinethe embeddingsimi- 2025; Yao et al., 2025a; Li et al., 2025b; Huang
+larityofthetextnodestoselectthemostdissimilar et al., 2025b; Chen et al., 2024). While the lat-
+text nodes, and ultimately determine the retained ter maintains a short-term sliding window and a
+textnodesbasedonacomprehensivefusionscore. long-term memory stack at the LLM level to pre-
+Additionally, to reduce the performance degra- serve information across temporal scales (Yang
+dationcausedbycompressingthememorygraph, et al., 2025c; Kim et al., 2025; Ning et al., 2025;
+inspired by the human memory mechanism, we Di et al., 2025; Xu et al., 2025b). Recently, M3-
+design a Time-decay Memory Retrieval (TMR) Agent (Long et al., 2025) departs from these de-
+mechanism for efficiently retrieving the memory signsbyintegratinglong-termagentmemoryinto
+graph. We calculate the total similarity between streaming video understanding, showing strong
+text nodes in the memory graph and the model’s potential for modeling long-range temporal de-
+query for each time segment. Based on the to- pendenciesandmaintainingentityconsistency.
+tal similarity of each time segment, we dynami-
+2.2 Long-TermAgentMemory
+callyallocatethenumberoftextnodestodifferent
+segments. Furthermore, to simulate the memory Long-term agent memory is designed to provide
+decay mechanism of the human brain, we assign LLM-based agents with persistent memory be-
+nonlinear time-varying decay to the text nodes of yond a single context window. Depending on the
+each time segment, thereby adaptively balancing typeofinputithandles,itcanbecategorizedinto
+long-termmemoryandrecentcriticalinformation unimodalandmultimodalforms. Unimodalmem-
+duringtheretrievalstage,andguaranteeingthere- ory(Yuetal.,2025a;Zhouetal.,2025;Chhikara
+trievalofmorememoriesfromrecentsegments. et al., 2025a; Packer et al., 2023) typically main-
+tains consistency across multi-turn reasoning by
+In summary, the main contributions of this pa-
+constructingstructuredrepresentations,latentem-
+perareasfollows:
+beddings, or summaries. In contrast, multimodal
+• We propose edge-free minmax sampling mod-
+memory(Yuetal.,2025b;Zhangetal.,2025;Yao
+uleandedge-awareweightingpruning module,
+et al., 2025b; Fan et al., 2025) integrates visual,
+which efficiently compress the memory graph
+linguistic, and other signals into a unified space,
+basedonitsstructuralproperties.
+updatingthemtosupportstablelong-termreason-
+• We introduce a novel time-decay memory re- ing and decision-making. Building on this foun-
+trieval mechanism,whichhasbeenexperimen- dation, M3-Agent is the first to introduce long-
