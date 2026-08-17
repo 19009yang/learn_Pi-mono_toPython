@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import re
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -12,6 +14,7 @@ from typing import cast
 
 from openai import AsyncOpenAI
 
+from pi_ai.compat import resolve_openai_completions_compat
 from pi_ai.event_stream import AssistantMessageEventStream
 from pi_ai.models import calculate_cost, clamp_thinking_level
 from pi_ai.transform_messages import transform_messages
@@ -170,11 +173,10 @@ def build_params(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    compat = resolve_openai_completions_compat(model)
     if options.max_tokens is not None:
-        params["max_completion_tokens"] = options.max_tokens
-    if options.temperature is not None and not (
-        model.compat or {}
-    ).get("supportsTemperature") is False:
+        params[compat.max_tokens_field] = options.max_tokens
+    if options.temperature is not None and compat.supports_temperature:
         params["temperature"] = options.temperature
     if context.tools:
         params["tools"] = convert_tools(context.tools)
@@ -183,7 +185,7 @@ def build_params(
     if options.tool_choice is not None:
         params["tool_choice"] = options.tool_choice
 
-    if model.reasoning and (model.compat or {}).get("thinkingFormat") == "deepseek":
+    if model.reasoning and compat.thinking_format == "deepseek":
         extra_body: dict[str, object] = {
             "thinking": {
                 "type": "enabled" if options.reasoning_effort else "disabled"
@@ -194,6 +196,8 @@ def build_params(
                 model.thinking_level_map or {}
             ).get(options.reasoning_effort) or options.reasoning_effort
         params["extra_body"] = extra_body
+    elif model.reasoning and compat.thinking_format == "qwen":
+        params["extra_body"] = {"enable_thinking": bool(options.reasoning_effort)}
     return params
 
 
@@ -204,13 +208,24 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, object]]:
     if context.system_prompt:
         result.append({"role": "system", "content": context.system_prompt})
 
-    requires_reasoning = bool(
-        (model.compat or {}).get("requiresReasoningContentOnAssistantMessages")
-    )
-    for message in transform_messages(context.messages, model):
+    compat = resolve_openai_completions_compat(model)
+    requires_reasoning = compat.requires_reasoning_content_on_assistant_messages
+    last_role: str | None = None
+    for message in transform_messages(
+        context.messages,
+        model,
+        normalize_tool_call_id=lambda value: _normalize_tool_call_id(model, value),
+    ):
+        if (
+            compat.requires_assistant_after_tool_result
+            and last_role == "tool"
+            and message.role == "user"
+        ):
+            result.append({"role": "assistant", "content": "I have processed the tool results."})
         if message.role == "user":
             if isinstance(message.content, str):
                 result.append({"role": "user", "content": message.content})
+                last_role = "user"
                 continue
             parts: list[dict[str, object]] = []
             for block in message.content:
@@ -234,6 +249,7 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, object]]:
                     )
             if parts:
                 result.append({"role": "user", "content": parts})
+                last_role = "user"
             continue
 
         if message.role == "assistant":
@@ -276,6 +292,7 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, object]]:
                 ]
             if text or tool_calls:
                 result.append(converted)
+                last_role = "assistant"
             continue
 
         if isinstance(message, ToolResultMessage):
@@ -285,13 +302,15 @@ def convert_messages(model: Model, context: Context) -> list[dict[str, object]]:
                 else "(tool image omitted: model does not support images)"
                 for block in message.content
             )
-            result.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": message.tool_call_id,
-                    "content": text or "(no tool output)",
-                }
-            )
+            tool_result: dict[str, object] = {
+                "role": "tool",
+                "tool_call_id": message.tool_call_id,
+                "content": text or "(no tool output)",
+            }
+            if compat.requires_tool_result_name and message.tool_name:
+                tool_result["name"] = message.tool_name
+            result.append(tool_result)
+            last_role = "tool"
     return result
 
 
@@ -575,6 +594,19 @@ def _parse_partial_json(value: str) -> dict[str, object]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _normalize_tool_call_id(model: Model, value: str) -> str:
+    """Meet Chat Completions' call-ID constraints without altering core history."""
+
+    if "|" in value:
+        value = value.replace("|", "_")
+    if model.provider == "openai":
+        sanitized = re.sub(r"[^A-Za-z0-9_-]", "_", value)
+        if len(sanitized) <= 40:
+            return sanitized
+        return f"{sanitized[:31]}_{hashlib.sha256(value.encode()).hexdigest()[:8]}"
+    return value
 
 
 def _is_aborted(options: StreamOptions | None) -> bool:

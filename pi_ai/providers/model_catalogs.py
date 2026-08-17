@@ -6,6 +6,7 @@ from pi_ai.types import Model, ModelCost
 
 _ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+_DASHSCOPE_COMPATIBLE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 
@@ -180,3 +181,37 @@ def get_deepseek_models() -> list[Model]:
     """Return the DeepSeek catalog in stable display order."""
 
     return list(DEEPSEEK_MODELS.values())
+
+
+QWEN_MODELS: dict[str, Model] = {
+    "qwen3.7-plus": Model(
+        id="qwen3.7-plus",
+        name="Qwen3.7-Plus",
+        api="openai-completions",
+        provider="qwen",
+        base_url=_DASHSCOPE_COMPATIBLE_BASE_URL,
+        context_window=1_000_000,
+        max_tokens=65_536,
+        cost=ModelCost(input=0, output=0, cache_read=0, cache_write=0),
+        input=["text"],
+        reasoning=True,
+        thinking_level_map={
+            "minimal": "minimal",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+        },
+        compat={
+            "maxTokensField": "max_tokens",
+            "thinkingFormat": "qwen",
+            "supportsTemperature": True,
+        },
+    ),
+}
+
+
+def get_qwen_models() -> list[Model]:
+    """Return the Qwen catalog for DashScope's China-mainland endpoint."""
+
+    return list(QWEN_MODELS.values())

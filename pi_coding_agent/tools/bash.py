@@ -39,6 +39,52 @@ def _sanitize_output(text: str) -> str:
     return "".join(char for char in text if char in "\t\n\r" or (char.isprintable() and ord(char) != 127))
 
 
+def _sanitize_command(command: str) -> tuple[str, list[str]]:
+    """Pre-process a shell command to prevent accidental file redirections.
+
+    On Windows (Git Bash), LLM-generated commands may contain patterns that
+    bash interprets as file redirections, creating spurious files:
+
+    - ``pip install pkg>=1.0``  → bash sees ``> =1.0`` (creates ``=1.0`` file)
+    - ``command > nul``         → bash sees ``nul`` as a regular file (not NUL device)
+    - ``command 2> nul``        → same issue
+
+    Returns (sanitized_command, warnings).
+    """
+    import re
+
+    warnings: list[str] = []
+
+    # 1) Fix bare ``>=version`` in pip/uv install commands (e.g. pymupdf>=1.23.0)
+    #    This is the most common case: the LLM writes ``pip install pkg>=1.0``
+    #    and bash interprets ``>=1.0`` as ``> =1.0`` (redirect to file named ``=1.0``).
+    #    We wrap the package specifier in quotes: ``pip install "pkg>=1.0"``
+    def _fix_bare_ge(match: re.Match[str]) -> str:
+        prefix = match.group(1)      # e.g. "pip install pymupdf"
+        pkg_name = match.group(2)     # e.g. "pymupdf"
+        version_spec = match.group(3) # e.g. ">=1.23.0"
+        warnings.append(
+            f"Auto-quoted bare version specifier: {pkg_name}{version_spec} → \"{pkg_name}{version_spec}\""
+        )
+        return f'{prefix}"{pkg_name}{version_spec}"'
+
+    command = re.sub(
+        r'((?:pip|uv|pipx)\s+install\s+)(\w[\w.-]*)([><=!~]=?[\w.*+-]+)',
+        _fix_bare_ge,
+        command,
+    )
+
+    # 2) Replace ``> nul`` / ``2> nul`` with ``> /dev/null`` / ``2> /dev/null``
+    #    On Windows cmd.exe, ``> nul`` suppresses output; in Git Bash, ``nul``
+    #    is a regular filename and creates a file named ``nul``.
+    nul_pattern = re.compile(r'(\d?>|2>)\s*nul\b')
+    if nul_pattern.search(command):
+        command = nul_pattern.sub(r'\1/dev/null', command)
+        warnings.append("Replaced '> nul' with '> /dev/null' (Git Bash compatible)")
+
+    return command, warnings
+
+
 class BashTool(CodingTool):
     def __init__(self, cwd: str | Path, state: ToolState | None = None) -> None:
         super().__init__(
@@ -60,6 +106,18 @@ class BashTool(CodingTool):
     ) -> AgentToolResult[dict[str, object] | None]:
         values = BashParameters.model_validate(params)
         self._check_abort(signal)
+
+        # Pre-process command to prevent accidental file redirections
+        values.command, cmd_warnings = _sanitize_command(values.command)
+        if cmd_warnings and on_update is not None:
+            warn_text = "[bash sanitize] " + "; ".join(cmd_warnings)
+            on_update(
+                AgentToolResult(
+                    content=[TextContent(text=warn_text)],
+                    details={"partial": True, "sanitize_warning": True},
+                )
+            )
+
         if self.bash_path is None:
             raise RuntimeError("bash was not found; install Git Bash or add bash to PATH")
         if sys.platform == "win32":

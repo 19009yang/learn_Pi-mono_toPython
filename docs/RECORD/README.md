@@ -87,7 +87,7 @@ class TestCalculate:
     def test_sub_negative(self):
         actual = sub(10, 30)
         assert actual == -20, f"负数减法错误！预期-20，实际{actual}"
-    
+  
 # 方式1：运行当前目录所有用例（显示详细结果）
 pytest -v
 
@@ -273,9 +273,13 @@ async def _emit(emit: AgentEventSink, event: AgentEvent) -> None:
 
 当前使用`uv run -m pi_coding_agent`命令并不会显式加载skills，需要使用`uv run -m pi_coding_agent --skills-dir pi_coding_agent/skills`命令
 
->pi>你能使用什么skills<br>
->根据当前可用的技能列表，我只有一个技能可以使用：<br>
->**hello-file**: 创建一个包含 "hello" 的 `hello.txt` 文件，然后读取它来验证结果。<br>
->如果你想让我使用这个技能，只需告诉我就行！<br>
+> pi>你能使用什么skills
+> 根据当前可用的技能列表，我只有一个技能可以使用：
+> **hello-file**: 创建一个包含 "hello" 的 `hello.txt` 文件，然后读取它来验证结果。
+> 如果你想让我使用这个技能，只需告诉我就行！
 
 如果不使用显式加载，Agent会按照prompt的描述：**当任务匹配某个 Skill 的描述时，在遵循该 Skill 前调用 load_skill**，但是提示词层面的约束可能会出现误判或者遗漏，例如我添加`pi_coding_agent\skills\pdf-image-text-extractor-1.0.10` skill后，让Agent提取`demo\pdf\2604.09000v2-2.pdf`中的文字，并不会调用该skill
+
+发现目前的demo中存在一个bug：当 Agent（LLM）生成类似 pip install pymupdf>=1.23.0 的命令时，在 bash 中 >= 被解释为输出重定向，产生名称为=1.23.0的异常文件，通过在 bash 工具中添加命令安全检查以及在prompt中添加系统约束解决
+
+

@@ -86,6 +86,11 @@ Tool use rules:
 - Prefer the dedicated read, grep, glob, write, and edit tools over shell equivalents.
 - Explain completed work concisely and include relevant file paths.
 
+Shell command safety rules (running on Windows with Git Bash):
+- Always quote package specifiers with version constraints: write `pip install "pymupdf>=1.23.0"` NOT `pip install pymupdf>=1.23.0` (bash interprets `>=` as a redirect, creating a spurious `=1.23.0` file).
+- Use `> /dev/null 2>&1` to suppress output, NOT `> nul` (in Git Bash, `nul` is a regular filename, not a device).
+- When in doubt, wrap any argument containing `>`, `<`, `|`, `&`, `=`, `~`, `!`, or `*` in single or double quotes.
+
 Skills provide task-specific instructions. {skill_rule}
 {_format_skills(skills)}"""
     return prompt + _format_project_context(project_context)

@@ -2,11 +2,12 @@
 
 > 目标：参照 `packages/` 下的 TypeScript 源码，实现一个 Python 版 MVP，先跑通核心闭环，保留扩展点。
 > 配套文档：
+>
 > - `pi_learn/Agent/packages-agent-analysis.md`（agent 包逐文件解析）
 > - `pi_learn/python-pi-implementation-plan.md`（完整实现方案 + 类型签名）
 > - `pi_learn/models-learning-path.md`（Models/Provider/模型目录的 TS 与 Python 对照解读）
 > - `pi_learn/agent-types-learning-path.md`（Phase 2.1：Agent 类型与 convert_to_llm）
-> 本路线聚焦"学什么、读哪些 TS 文件、写哪些 Python 文件、如何验证、留哪些扩展点"。
+>   本路线聚焦"学什么、读哪些 TS 文件、写哪些 Python 文件、如何验证、留哪些扩展点"。
 
 ---
 
@@ -35,15 +36,16 @@
 
 不动手写代码前，确认以下能力到位，否则在对应阶段会卡壳。
 
-| 主题 | 要求 | 自检方式 |
-|------|------|---------|
-| Python asyncio | `async/await`、`asyncio.create_task`、`asyncio.Queue`、`asyncio.Event`、`asyncio.create_subprocess_shell` | 写一个流式读取子进程 stdout 的小脚本 |
-| 类型系统 | `dataclass`、`typing` 联合类型/`Literal`/`Generic`、`Protocol`（结构化接口） | 用 `Protocol` 定义一个 `FileSystem` 抽象 |
-| Pydantic / JSON Schema | 用 Pydantic v2 生成 `parameters_schema` 给工具 | 写一个工具参数模型并导出 schema |
-| LLM 流式 + tool use | 理解 SSE、`tool_use`/`tool_result` 往返、`stop_reason` | 用 `anthropic` SDK 裸跑一个带工具的流式调用 |
-| pi-mono 架构 | 三层结构（ai / agent / coding-agent） | 通读下面两份分析文档 |
+| 主题                   | 要求                                                                                                                | 自检方式                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Python asyncio         | `async/await`、`asyncio.create_task`、`asyncio.Queue`、`asyncio.Event`、`asyncio.create_subprocess_shell` | 写一个流式读取子进程 stdout 的小脚本         |
+| 类型系统               | `dataclass`、`typing` 联合类型/`Literal`/`Generic`、`Protocol`（结构化接口）                              | 用`Protocol` 定义一个 `FileSystem` 抽象  |
+| Pydantic / JSON Schema | 用 Pydantic v2 生成`parameters_schema` 给工具                                                                     | 写一个工具参数模型并导出 schema              |
+| LLM 流式 + tool use    | 理解 SSE、`tool_use`/`tool_result` 往返、`stop_reason`                                                        | 用`anthropic` SDK 裸跑一个带工具的流式调用 |
+| pi-mono 架构           | 三层结构（ai / agent / coding-agent）                                                                               | 通读下面两份分析文档                         |
 
 **必读**（按顺序）：
+
 1. `pi_learn/Agent/packages-agent-analysis.md`（理解 agent 包的循环引擎与 harness）
 2. `pi_learn/python-pi-implementation-plan.md`（理解 Python 化的类型与模块划分）
 3. TS 入口：`packages/ai/src/index.ts`、`packages/agent/src/index.ts`（看公共 API 边界）
@@ -52,12 +54,12 @@
 
 ## 2. 总览：四阶段 + 时间估算
 
-| 阶段 | 目标 | 关键产出 | 估算 |
-|------|------|---------|------|
-| **Phase 1** | LLM 通信跑通 | `pi_ai`：能流式拿到 Anthropic 响应（含工具） | 3-4 天 |
-| **Phase 2** | Agent 循环跑通 | `pi_agent`：`Agent.prompt()` 多轮 + 工具调用闭环 | 3-4 天 |
-| **Phase 3** | 编码 Agent 可用 | `pi_coding_agent`：6 个工具 + 系统提示 + CLI | 3-4 天 |
-| **Phase 4** | 持久化与扩展验证 | 会话 JSONL、压缩、加第二个 provider 验证抽象 | 4-5 天 |
+| 阶段              | 目标             | 关键产出                                             | 估算   |
+| ----------------- | ---------------- | ---------------------------------------------------- | ------ |
+| **Phase 1** | LLM 通信跑通     | `pi_ai`：能流式拿到 Anthropic 响应（含工具）       | 3-4 天 |
+| **Phase 2** | Agent 循环跑通   | `pi_agent`：`Agent.prompt()` 多轮 + 工具调用闭环 | 3-4 天 |
+| **Phase 3** | 编码 Agent 可用  | `pi_coding_agent`：6 个工具 + 系统提示 + CLI       | 3-4 天 |
+| **Phase 4** | 持久化与扩展验证 | 会话 JSONL、压缩、加第二个 provider 验证抽象         | 4-5 天 |
 
 > 估算按"每天 3-4 小时专注"计。可按自身节奏伸缩，但**不要跳过验证点**——每阶段验证不通过就回头补，否则错误会累积到后面爆发。
 
@@ -72,14 +74,17 @@
 **学习目标**：理解 pi-ai 的类型契约（Message / Context / Tool / Usage / 事件），以及 `EventStream` 的"同步返回、异步填充"语义。
 
 **读 TS**：
+
 - `packages/ai/src/types.ts`（全部核心类型）
 - `packages/ai/src/utils/event-stream.ts`（`AssistantMessageEventStream` 实现）
 
 **写 Python**：
+
 - `pi_ai/types.py` — 所有 dataclass（按 `python-pi-implementation-plan.md` §1）
 - `pi_ai/event_stream.py` — `EventStream[TEvent, TResult]` 泛型基类 + `AssistantMessageEventStream`
 
 **关键概念**：
+
 - `EventStream` 用 `asyncio.Queue` + `asyncio.Event`：`push()` 同步入队，`__aiter__` 异步消费，`end()` 放入 `None` 哨兵，`result()` 在 done/error 时 resolve。
 - TS 的 `lazyStream`（同步返回 stream，内部 task 异步解析 auth 再转发 provider 事件）在 Python 用 `asyncio.create_task(_setup())` + 转发实现。
 
@@ -92,10 +97,12 @@
 **学习目标**：理解凭据解析的优先级链（stored → env），以及为何用抽象 `CredentialStore`。
 
 **读 TS**：
+
 - `packages/ai/src/auth/credential-store.ts`、`auth/types.ts`、`auth/helpers.ts`、`auth/resolve.ts`
 - `packages/ai/src/env-api-keys.ts`（环境变量映射）
 
 **写 Python**：
+
 - `pi_ai/auth.py` — `CredentialStore` 抽象、`InMemoryCredentialStore`、`ApiKeyAuth`、`AuthResult`、`resolve_provider_auth()`、`env_api_key_auth()`
 
 **暂不实现**：OAuth（`auth/oauth/`）、GitHub Copilot 动态 headers。
@@ -109,11 +116,13 @@
 **学习目标**：理解 `Provider` / `Models` 注册表模式，`stream` vs `stream_simple` 的关系。
 
 **读 TS**：
+
 - `packages/ai/src/models.ts`（`Models` / `MutableModels` / `create_provider` / `calculate_cost` / thinking level 工具）
 - `packages/ai/src/providers/anthropic.ts`（provider 装配示例）
 - `packages/ai/src/providers/anthropic.models.ts`（模型目录数据，只取 Claude Sonnet/Opus 几条即可）
 
 **写 Python**：
+
 - `pi_ai/models.py` — `Provider`、`Models`、`MutableModels`、`create_provider()`、`create_models()`、`calculate_cost()`、thinking level 工具函数
 - `pi_ai/providers/model_catalogs.py` — 精简版 Anthropic 模型列表（3-5 条）
 
@@ -128,21 +137,25 @@
 **学习目标**：把 pi 的内部消息/工具格式翻译成 provider 请求，再把 provider SSE 翻译回 pi 事件。这是整个 ai 层的核心翻译练习。
 
 **读 TS**：
+
 - `packages/ai/src/api/anthropic-messages.ts`（请求构建 + SSE 解析 + 事件发射）
 - `packages/ai/src/api/simple-options.ts`（`SimpleStreamOptions` → `StreamOptions` + thinking budget 调整）
 - `packages/ai/src/api/transform-messages.ts`（发送前消息规范化——**先读，Phase 1 可只实现最小子集**）
 
 **写 Python**：
+
 - `pi_ai/providers/anthropic.py` — `stream()` + `stream_simple()`
 - `pi_ai/simple_options.py` — `build_base_options()`、`adjust_max_tokens_for_thinking()`、`clamp_max_tokens_to_context()`
 - `pi_ai/transform_messages.py` — **最小版**：只处理"孤立 toolCall → 合成 error toolResult"和"非视觉模型图片降级"
 
 **关键概念**：
+
 - thinking 配置：`budget_tokens` 按 `ThinkingLevel` 映射（minimal/low/medium/high/xhigh），`type: "enabled"|"disabled"`。
 - 事件映射：`message_start`→start，`content_block_*`→text/thinking/toolcall 的 start/delta/end，`message_delta`→stop_reason+usage，最后 push done/error。
 - Python `anthropic` SDK 自带流式与事件类型，比 TS 手写 SSE 解析简单——但仍要按 pi 的事件语义重组 `AssistantMessage.content`。
 
 **验证点**（**Phase 1 终点**）：
+
 ```python
 models = create_models()
 stream = models.stream_simple(model, Context(system_prompt="你是助手", messages=[UserMessage("算 2+2")]), SimpleStreamOptions())
@@ -151,11 +164,13 @@ async for ev in stream:
 msg = await stream.result()
 assert msg.content 文本含 "4"
 ```
+
 再跑一个带工具定义的请求，确认能收到 `ToolCallEndEvent`。
 
 **扩展点**：`stream()` 接收 `StreamOptions`，新增 provider 只写自己的 `stream()`，`Models` 不变。
 
 ### Phase 1 自检清单
+
 - [ ] `EventStream` 泛型可用，假 provider 验证通过
 - [ ] API Key 从环境变量解析成功
 - [ ] `Models.stream_simple()` 对 Anthropic 返回流式文本
@@ -175,25 +190,30 @@ assert msg.content 文本含 "4"
 **详细指南**：`pi_learn/agent-types-learning-path.md`
 
 **读 TS**：
+
 - `packages/agent/src/types.ts`（`AgentTool`、`AgentState`、`AgentEvent`、`AgentLoopConfig`、钩子结果类型）
 - `packages/agent/src/harness/messages.ts`（自定义消息 + `convertToLlm`）
 
 **写 Python**：
+
 - `pi_agent/types.py` — `AgentTool` 基类、`AgentToolResult`、`AgentState`、`AgentEvent` 联合、`AgentLoopConfig`、`BeforeToolCallResult`/`AfterToolCallResult`
 - `pi_agent/messages.py` — `BashExecutionMessage`/`CompactionSummaryMessage`/`BranchSummaryMessage`/`CustomMessage` + `convert_to_llm()` + 构造器
 
 **验证**：
+
 ```bash
 uv run pytest tests/test_agent_types.py tests/test_messages.py -v
 ```
 
 **关键概念**：
+
 - `AgentTool` 用抽象基类：`name`、`description`、`parameters`（JSON Schema）、`execution_mode`、`prepare_arguments()`、`async execute()`；经 `as_tool()` 投影为 `pi_ai.Tool`。
 - `convert_to_llm`：自定义消息 → user 消息（bashExecution 文本化、summary 加 TS 同款 `<summary>` 包装）；`exclude_from_context=True` 的跳过。
 
 **扩展点**：`AgentMessage` 用 Union，加新自定义消息类型只需扩 Union + 在 `convert_to_llm` 加一个分支（或用注册表避免 if-else）。
 
 ### 2.1 自检清单
+
 - [ ] 能说明 `Message` 与 `AgentMessage` 的受众差异
 - [ ] `convert_to_llm` 对四种自定义角色的行为能默写
 - [ ] 能实现一个最小 `AgentTool` 子类并通过 `execute` 测试
@@ -205,12 +225,15 @@ uv run pytest tests/test_agent_types.py tests/test_messages.py -v
 **学习目标**：理解 `runLoop` 的双层 while 循环、steering/follow-up 队列、工具并行执行 + 源序结果。
 
 **读 TS**：
+
 - `packages/agent/src/agent-loop.ts`（**全文件精读**，重点是 `runLoop`、`streamAssistantResponse`、`executeToolCalls`、`prepareToolCall`）
 
 **写 Python**：
+
 - `pi_agent/agent_loop.py` — `agent_loop()`、`agent_loop_continue()`、内部 `run_loop()`、`stream_assistant_response()`、`execute_tool_calls()`（并行 + 顺序两版）、`prepare_tool_call()`
 
 **关键概念**：
+
 - 外层循环处理 follow-up，内层循环处理 toolCalls + steering。
 - `stream_assistant_response`：`transform_context()` → `convert_to_llm()` → `stream_fn()` → 转发事件 → 收集完整 `AssistantMessage`。
 - 并行执行：preflight（prepare + beforeToolCall）顺序做，`execute()` 并行（`asyncio.gather`），`tool_execution_end` 按完成序，但 `toolResult` 消息按 assistant 源序排列。
@@ -225,28 +248,34 @@ uv run pytest tests/test_agent_types.py tests/test_messages.py -v
 **学习目标**：理解 `Agent` 类相比裸 `agent_loop` 多了什么——状态持有、事件监听、消息队列、barrier-before-tool-preflight 语义。
 
 **读 TS**：
+
 - `packages/agent/src/agent.ts`（`Agent` 类、`MutableAgentState`、`PendingMessageQueue`、`ActiveRun`）
 
 **写 Python**：
+
 - `pi_agent/agent.py` — `Agent` 类：`prompt()`、`continue_loop()`、`subscribe()`、`abort()`、`wait_for_idle()`、`reset()`、`steer()`/`follow_up()`、内部 `_process_events()`、`_run_with_lifecycle()`
 
 **关键概念**：
+
 - `prompt()` → `normalize_prompt_input()` → `run_prompt_messages()` → `run_with_lifecycle()` → `run_agent_loop()`。
 - steering 队列默认 `one-at-a-time`，follow-up 默认 `all`。
 - `abort()` 用 `asyncio.Event` 信号；`wait_for_idle()` 监听 `agent_end`。
 
 **验证点**（**Phase 2 终点**）：
+
 ```python
 agent = Agent(state=..., config=...)
 agent.subscribe(lambda ev: print(ev.type))
 await agent.prompt("用 echo 工具打印 hello 然后总结")
 await agent.wait_for_idle()
 ```
+
 能观察到 `agent_start → turn_start → message_* → tool_execution_* → turn_end → ... → agent_end`。运行中调 `agent.steer(...)` 能在下一轮注入。
 
 **扩展点**：`Agent` 持有 `AgentState`，`tools`/`messages` setter 赋值时拷贝，便于后续 harness 层包装。
 
 ### Phase 2 自检清单
+
 - [ ] 假工具多轮循环跑通
 - [ ] 事件序列符合预期（start/turn/message/tool/end）
 - [ ] 并行工具执行结果按源序回灌
@@ -264,10 +293,12 @@ await agent.wait_for_idle()
 **学习目标**：每个工具都是 `AgentTool` 子类，参数用 Pydantic 建模生成 schema，执行用 asyncio。注意"先 Read 才能 Write/Edit"的状态约束。
 
 **读 TS**：
+
 - `packages/coding-agent/src/core/tools/bash.ts`、`read.ts`、`write.ts`、`edit.ts`、`grep.ts`、`find.ts`（glob）
 - `packages/coding-agent/src/core/tools/truncate.ts`、`path-utils.ts`、`output-accumulator.ts`
 
 **写 Python**：
+
 - `pi_coding_agent/tools/bash.py` — `asyncio.create_subprocess_shell`，找 bash（Windows: Git Bash → PATH；其他: /bin/bash），实时输出回调，timeout/abort，输出截断（保留尾部 50KB）
 - `pi_coding_agent/tools/read.py` — `cat -n` 格式，offset/limit，图片/PDF 先跳过或最小支持
 - `pi_coding_agent/tools/write.py` — 自动建父目录，"需先 Read"约束（用一个进程内 `read_files: set` 记录）
@@ -277,6 +308,7 @@ await agent.wait_for_idle()
 - `pi_coding_agent/truncate.py` — `truncate_head`/`truncate_tail`/`truncate_line`，行+字节双限制，正确处理 UTF-8
 
 **关键概念**：
+
 - "先 Read 才能 Write/Edit"是 pi 的安全设计，用进程内集合跟踪，跨工具共享。
 - Bash 输出二进制清洗：移除控制字符，保留 tab/LF/CR。
 - Grep 行截断 500 字符，避免超长行爆上下文。
@@ -290,11 +322,13 @@ await agent.wait_for_idle()
 **学习目标**：系统提示定义 agent 行为；Skill 系统先留接口，MVP 不必完整加载。
 
 **读 TS**：
+
 - `packages/coding-agent/src/core/system-prompt.ts`
 - `packages/agent/src/harness/system-prompt.ts`（Skill → XML 格式化）
 - `packages/agent/src/harness/skills.ts`（加载逻辑——先读懂，可不实现）
 
 **写 Python**：
+
 - `pi_coding_agent/system_prompt.py` — `build_system_prompt(skills, cwd, tools, project_context)`，含身份说明 + 工具使用规则 + Skill XML 块（空列表也能输出）
 - `pi_coding_agent/skills.py` — `Skill` dataclass + `load_skills()` **最小版**（只扫指定目录的 `SKILL.md`，解析 YAML frontmatter，不做 .gitignore/递归）；`format_skill_invocation()`
 
@@ -305,12 +339,15 @@ await agent.wait_for_idle()
 **学习目标**：串起三层，做交互式 REPL。先做最简行式输入输出，TUI 渲染留给后续。
 
 **读 TS**：
+
 - `packages/coding-agent/src/cli.ts`、`cli/args.ts`、`modes/print-mode.ts`（最简模式参考）、`modes/interactive/interactive-mode.ts`（只看骨架，不照搬 Ink-like TUI）
 
 **写 Python**：
-- `pi_coding_agent/cli.py` — `argparse` 解析 `--model`/`--provider`/`--prompt`；初始化 `Models` + `Agent`（注册 6 工具 + 系统提示）；交互循环用 `input()` 读行，订阅 agent 事件实时打印文本/thinking/工具调用；`-p` 单次模式；Ctrl+C → `abort()`
+
+- `pi_coding_agent/cli.py` — `argparse` 解析 `--model`/`--provider`/`--prompt`；初始化 `Models` + `AgentHarness`；交互循环用 `input()` 读行，订阅 agent 事件实时打印文本/thinking/工具调用；支持 `/clear`、`/new`、`/resume`、`/model`、`/status`、`/compact`、`/help`、`/exit` 命令；交互模式自动创建 SQLite 会话，`-p` 保持单次模式；Ctrl+C → `abort()`
 
 **验证点**（**Phase 3 终点**）：
+
 - `python -m pi_coding_agent -p "读取当前目录的 pyproject.toml 并告诉我项目名"` 能调用 read 工具并回答。
 - 交互模式输入"建一个 hello.txt 写入 hello 然后读出来"能走 write→read 闭环。
 - Ctrl+C 能中止长时间工具执行。
@@ -318,6 +355,7 @@ await agent.wait_for_idle()
 **扩展点**：CLI 只组装各层，后续可换 TUI 前端（textual/rich）而不动 agent/ai 层。
 
 ### Phase 3 自检清单
+
 - [ ] 6 工具各自单测通过
 - [ ] 系统提示含工具规则与 Skill 块
 - [ ] `pi -p` 单次模式端到端跑通
@@ -337,9 +375,11 @@ await agent.wait_for_idle()
 **学习目标**：会话树（parentId 链 + leaf 指针）、append-only JSONL、上下文重建。
 
 **读 TS**：
+
 - `packages/agent/src/harness/session/session.ts`、`jsonl-storage.ts`、`jsonl-repo.ts`、`memory-storage.ts`、`memory-repo.ts`、`uuid.ts`、`repo-utils.ts`
 
 **写 Python**：
+
 - `pi_agent/session/storage.py` — `SessionStorage` 抽象、`InMemorySessionStorage`、`JsonlSessionStorage`（`.open()/.create()/append_entry()/get_path_to_root()/set_leaf_id()`）
 - `pi_agent/session/session.py` — `Session` 类：`get_branch()`、`build_context()`、`append_message()`、`move_to()`
 - `pi_agent/session/repo.py` — `SessionRepo` 抽象 + 两个实现
@@ -347,17 +387,19 @@ await agent.wait_for_idle()
 
 **验证点**：跑一段对话存成 JSONL，重启进程 `.open()` 后 `build_context()` 能还原相同消息序列；`move_to()` 切分支后上下文变化。
 
-**扩展点**：`SessionStorage`/`SessionRepo` 抽象，后续可换 SQLite/远程存储。
+**扩展点**：`SessionStorage`/`SessionRepo` 抽象允许替换 SQLite/远程存储。当前已通过 `pi_agent/session/sqlite.py` 实现 `SQLiteSessionStorage`/`SQLiteSessionRepo`；单个本地数据库保存多会话及分支，CLI 的命名持久会话默认写入 `<cwd>/.pi/sessions.db`，仍可显式切换 JSONL。
 
 ### 4.2 上下文压缩
 
 **学习目标**：何时压缩、如何找切割点、如何生成结构化摘要、split turn 处理。
 
 **读 TS**：
+
 - `packages/agent/src/harness/compaction/compaction.ts`、`utils.ts`
 - `packages/coding-agent/src/core/compaction/compaction.ts`（coding-agent 侧的压缩设置与触发）
 
 **写 Python**：
+
 - `pi_agent/compaction.py` — `CompactionSettings`、`should_compact()`、`find_cut_point()`、`find_turn_start_index()`、`prepare_compaction()`、`generate_summary()`（用 `SUMMARIZATION_PROMPT`/`UPDATE_SUMMARIZATION_PROMPT`）、`compact()`
 - 复用 `pi_agent/messages.py` 的 `create_compaction_summary_message()`
 
@@ -370,11 +412,13 @@ await agent.wait_for_idle()
 **学习目标**：通过实现 OpenAI Completions 检验 Phase 1 的抽象是否足够，重点学 compat 系统。
 
 **读 TS**：
+
 - `packages/ai/src/api/openai-completions.ts`（请求构建 + compat 分支）
 - `packages/ai/src/compat.ts`（compat 检测——**MVP 只实现 `openai` 和 `deepseek` 两种 thinking_format**）
 - `packages/ai/src/api/transform-messages.ts`（**完整实现**：thinking 跨模型、tool call ID 规范化、assistant 后置消息）
 
 **写 Python**：
+
 - `pi_ai/providers/openai_completions.py`
 - 完善 `pi_ai/compat.py`、`pi_ai/transform_messages.py`
 
@@ -393,10 +437,12 @@ await agent.wait_for_idle()
 **扩展点**：钩子事件类型表（`before_agent_start`/`context`/`tool_call`/`tool_result`/`session_*`）让应用层深度介入。
 
 ### Phase 4 自检清单
-- [ ] JSONL 会话可持久化 + 重启恢复
-- [ ] 长对话自动压缩生效
-- [ ] 第二个 provider 不改核心即可接入
-- [ ] （若做）harness 钩子能 block/override 工具
+
+- [x] JSONL 会话可持久化 + 重启恢复
+- [x] SQLite 扩展存储可持久化多会话、分支及全部消息类型，CLI 默认接入
+- [x] 长对话自动压缩生效（`pi_agent.compaction`：结构化摘要、切分点与 split turn）
+- [x] 第二个 provider 不改核心即可接入（Qwen `qwen3.7-plus`，DashScope 中国大陆兼容接口）
+- [x] harness 钩子能 block/override 工具
 
 ---
 
@@ -431,29 +477,29 @@ await agent.wait_for_idle()
 
 ## 5. 学习与实现对照速查表
 
-| Python 模块 | 主参考 TS 文件 | 阶段 |
-|------------|--------------|------|
-| `pi_ai/types.py` | `ai/src/types.ts` | P1 |
-| `pi_ai/event_stream.py` | `ai/src/utils/event-stream.ts` | P1 |
-| `pi_ai/auth.py` | `ai/src/auth/*`、`env-api-keys.ts` | P1 |
-| `pi_ai/models.py` | `ai/src/models.ts`、`providers/anthropic.ts` | P1 |
-| `pi_ai/simple_options.py` | `ai/src/api/simple-options.ts` | P1 |
-| `pi_ai/transform_messages.py` | `ai/src/api/transform-messages.ts` | P1 最小 / P4 完整 |
-| `pi_ai/providers/anthropic.py` | `ai/src/api/anthropic-messages.ts` | P1 |
-| `pi_ai/providers/openai_completions.py` | `ai/src/api/openai-completions.ts`、`compat.ts` | P4 |
-| `pi_ai/compat.py` | `ai/src/compat.ts` | P4 |
-| `pi_agent/types.py` | `agent/src/types.ts` | P2 |
-| `pi_agent/messages.py` | `agent/src/harness/messages.ts` | P2 |
-| `pi_agent/agent_loop.py` | `agent/src/agent-loop.ts` | P2 |
-| `pi_agent/agent.py` | `agent/src/agent.ts` | P2 |
-| `pi_agent/session/*` | `agent/src/harness/session/*` | P4 |
-| `pi_agent/compaction.py` | `agent/src/harness/compaction/compaction.ts` | P4 |
-| `pi_agent/harness.py` | `agent/src/harness/agent-harness.ts` | P4 可选 |
-| `pi_coding_agent/tools/*` | `coding-agent/src/core/tools/*` | P3 |
-| `pi_coding_agent/truncate.py` | `coding-agent/src/core/tools/truncate.ts`、`agent/src/harness/utils/truncate.ts` | P3 |
-| `pi_coding_agent/system_prompt.py` | `coding-agent/src/core/system-prompt.ts`、`agent/src/harness/system-prompt.ts` | P3 |
-| `pi_coding_agent/skills.py` | `agent/src/harness/skills.ts` | P3 最小 |
-| `pi_coding_agent/cli.py` | `coding-agent/src/cli.ts`、`modes/print-mode.ts` | P3 |
+| Python 模块                               | 主参考 TS 文件                                                                       | 阶段              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+| `pi_ai/types.py`                        | `ai/src/types.ts`                                                                  | P1                |
+| `pi_ai/event_stream.py`                 | `ai/src/utils/event-stream.ts`                                                     | P1                |
+| `pi_ai/auth.py`                         | `ai/src/auth/*`、`env-api-keys.ts`                                               | P1                |
+| `pi_ai/models.py`                       | `ai/src/models.ts`、`providers/anthropic.ts`                                     | P1                |
+| `pi_ai/simple_options.py`               | `ai/src/api/simple-options.ts`                                                     | P1                |
+| `pi_ai/transform_messages.py`           | `ai/src/api/transform-messages.ts`                                                 | P1 最小 / P4 完整 |
+| `pi_ai/providers/anthropic.py`          | `ai/src/api/anthropic-messages.ts`                                                 | P1                |
+| `pi_ai/providers/openai_completions.py` | `ai/src/api/openai-completions.ts`、`compat.ts`                                  | P4                |
+| `pi_ai/compat.py`                       | `ai/src/compat.ts`                                                                 | P4                |
+| `pi_agent/types.py`                     | `agent/src/types.ts`                                                               | P2                |
+| `pi_agent/messages.py`                  | `agent/src/harness/messages.ts`                                                    | P2                |
+| `pi_agent/agent_loop.py`                | `agent/src/agent-loop.ts`                                                          | P2                |
+| `pi_agent/agent.py`                     | `agent/src/agent.ts`                                                               | P2                |
+| `pi_agent/session/*`                    | `agent/src/harness/session/*`                                                      | P4                |
+| `pi_agent/compaction.py`                | `agent/src/harness/compaction/compaction.ts`                                       | P4                |
+| `pi_agent/harness.py`                   | `agent/src/harness/agent-harness.ts`                                               | P4 可选           |
+| `pi_coding_agent/tools/*`               | `coding-agent/src/core/tools/*`                                                    | P3                |
+| `pi_coding_agent/truncate.py`           | `coding-agent/src/core/tools/truncate.ts`、`agent/src/harness/utils/truncate.ts` | P3                |
+| `pi_coding_agent/system_prompt.py`      | `coding-agent/src/core/system-prompt.ts`、`agent/src/harness/system-prompt.ts`   | P3                |
+| `pi_coding_agent/skills.py`             | `agent/src/harness/skills.ts`                                                      | P3 最小           |
+| `pi_coding_agent/cli.py`                | `coding-agent/src/cli.ts`、`modes/print-mode.ts`                                 | P3                |
 
 ---
 

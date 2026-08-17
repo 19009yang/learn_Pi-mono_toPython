@@ -15,6 +15,7 @@ from pi_ai.auth import (
     resolve_provider_auth,
 )
 from pi_ai.event_stream import AssistantMessageEventStream, EventStream
+from pi_ai.compat import OpenAICompletionsCompat, resolve_openai_completions_compat
 from pi_ai.models import (
     Models,
     MutableModels,
@@ -74,6 +75,8 @@ __all__ = [
     "resolve_provider_auth",
     "EventStream",
     "AssistantMessageEventStream",
+    "OpenAICompletionsCompat",
+    "resolve_openai_completions_compat",
     "Models",
     "MutableModels",
     "Provider",

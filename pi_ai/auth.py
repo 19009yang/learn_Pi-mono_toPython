@@ -376,6 +376,7 @@ _ENV_API_KEY_VARS: dict[str, tuple[str, ...]] = {
     "groq": ("GROQ_API_KEY",),
     "mistral": ("MISTRAL_API_KEY",),
     "deepseek": ("DEEPSEEK_API_KEY",),
+    "qwen": ("DASHSCOPE_API_KEY", "QWEN_API_KEY"),
 }
 # _ENV_API_KEY_VARS 是一个"每个 provider 从哪些环境变量按什么优先级找 API Key"的配置表——anthropic 特殊，支持 OAuth
 # token 和 API key 两种方式，其他 provider 各有一个专属环境变量名

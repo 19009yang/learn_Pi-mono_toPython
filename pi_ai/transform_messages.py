@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import replace
 
 from pi_ai.types import (
@@ -21,7 +22,11 @@ _USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)"
 _TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)"
 
 
-def transform_messages(messages: list[Message], model: Model) -> list[Message]:
+def transform_messages(
+    messages: list[Message],
+    model: Model,
+    normalize_tool_call_id: Callable[[str], str] | None = None,
+) -> list[Message]:
     """遍历所有消息，按类型分发到对应的转换函数
     -跳过 stop_reason 为 "error" 或 "aborted" 的助手消息——这些是失败/中断的回复，不应回放
     -最后调用 _insert_missing_tool_results 做兜底修补
@@ -39,7 +44,8 @@ def transform_messages(messages: list[Message], model: Model) -> list[Message]:
                 continue
             transformed.append(_transform_assistant(message, model))
 
-    return _insert_missing_tool_results(transformed)
+    transformed = _insert_missing_tool_results(transformed)
+    return _normalize_tool_call_ids(transformed, normalize_tool_call_id)
 
 #如果模型不支持图片输入（"image" not in model.input），将消息中的 ImageContent替换为文本占位符 (image omitted: ...)
 def _transform_user(message: UserMessage, model: Model) -> UserMessage:
@@ -151,4 +157,31 @@ def _insert_missing_tool_results(messages: list[Message]) -> list[Message]:
             result.append(message)
 
     flush_pending()
+    return result
+
+
+def _normalize_tool_call_ids(
+    messages: list[Message],
+    normalize: Callable[[str], str] | None,
+) -> list[Message]:
+    """Apply an API-specific call-ID rule consistently to calls and results."""
+
+    if normalize is None:
+        return messages
+    id_map: dict[str, str] = {}
+    result: list[Message] = []
+    for message in messages:
+        if isinstance(message, AssistantMessage):
+            content: list[TextContent | ThinkingContent | ToolCall] = []
+            for block in message.content:
+                if isinstance(block, ToolCall):
+                    normalized = id_map.setdefault(block.id, normalize(block.id))
+                    content.append(replace(block, id=normalized))
+                else:
+                    content.append(block)
+            result.append(replace(message, content=content))
+        elif isinstance(message, ToolResultMessage):
+            result.append(replace(message, tool_call_id=id_map.get(message.tool_call_id, normalize(message.tool_call_id))))
+        else:
+            result.append(message)
     return result
